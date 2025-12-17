@@ -18,7 +18,6 @@ import {
 	TableHeader,
 	TableRow
 } from '@/components/ui/table';
-import { DataTableToolbar } from './toolbar';
 import { Button } from '@/components/ui/button';
 
 interface DataTableProps<TData, TValue> {
@@ -34,15 +33,13 @@ export function DataTable<TData, TValue>({
 		data,
 		columns,
 		getCoreRowModel: getCoreRowModel(),
-		getPaginationRowModel: getPaginationRowModel(),
 		getSortedRowModel: getSortedRowModel(),
-		getFilteredRowModel: getFilteredRowModel()
+		getFilteredRowModel: getFilteredRowModel(),
+		getPaginationRowModel: getPaginationRowModel()
 	});
 
 	return (
 		<div className='space-y-4'>
-			<DataTableToolbar table={table} />
-
 			<div className='rounded-md border'>
 				<Table>
 					<TableHeader>
@@ -89,7 +86,7 @@ export function DataTable<TData, TValue>({
 				</Table>
 			</div>
 
-			<div className='flex items-center justify-end space-x-2 py-4'>
+			<div className='flex justify-end gap-2'>
 				<Button
 					variant='outline'
 					size='sm'
