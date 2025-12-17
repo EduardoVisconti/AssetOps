@@ -6,6 +6,7 @@ import { createEquipment, updateEquipment } from '@/data-access/equipments';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 import { Equipment, EquipmentStatus } from '@/types/equipment';
 import { Button } from '@/components/ui/button';
@@ -69,7 +70,11 @@ export default function EquipmentForm({
 		mutationFn: createEquipment,
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['equipments'] });
+			toast.success('Equipment created successfully');
 			router.push('/equipments');
+		},
+		onError: () => {
+			toast.error('Failed to create equipment');
 		}
 	});
 
@@ -78,7 +83,11 @@ export default function EquipmentForm({
 			updateEquipment(id, data),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['equipments'] });
+			toast.success('Equipment updated successfully');
 			router.push('/equipments');
+		},
+		onError: () => {
+			toast.error('Failed to update equipment');
 		}
 	});
 

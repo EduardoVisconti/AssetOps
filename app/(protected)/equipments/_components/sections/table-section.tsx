@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { MoreHorizontal } from 'lucide-react';
 import { deleteEquipment, getEquipmentsList } from '@/data-access/equipments';
 import { Equipment } from '@/types/equipment';
+import { toast } from 'sonner';
 
 import { DataTable } from '@/components/core/tables/data-table';
 import { Input } from '@/components/ui/input';
@@ -47,6 +48,10 @@ export default function EquipmentsTableSection() {
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['equipments'] });
+			toast.success('Equipment deleted');
+		},
+		onError: () => {
+			toast.error('Failed to delete equipment');
 		}
 	});
 
