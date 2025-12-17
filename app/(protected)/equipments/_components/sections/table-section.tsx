@@ -17,11 +17,25 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
+import {
+	AlertDialog,
+	AlertDialogTrigger,
+	AlertDialogContent,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogCancel,
+	AlertDialogAction
+} from '@/components/ui/alert-dialog';
 
 export default function EquipmentsTableSection() {
 	const router = useRouter();
 	const queryClient = useQueryClient();
 	const [deletingId, setDeletingId] = useState<string | null>(null);
+	const [equipmentToDelete, setEquipmentToDelete] = useState<Equipment | null>(
+		null
+	);
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => deleteEquipment(id),
@@ -87,7 +101,7 @@ export default function EquipmentsTableSection() {
 							<DropdownMenuItem
 								className='text-destructive'
 								disabled={isDeleting}
-								onClick={() => handleDelete(equipment)}
+								onClick={() => setEquipmentToDelete(equipment)}
 							>
 								Delete
 							</DropdownMenuItem>
@@ -127,6 +141,42 @@ export default function EquipmentsTableSection() {
 				columnFilters={columnFilters}
 				onColumnFiltersChange={setColumnFilters}
 			/>
+			<AlertDialog
+				open={!!equipmentToDelete}
+				onOpenChange={(open) => {
+					if (!open) setEquipmentToDelete(null);
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete equipment</AlertDialogTitle>
+						<AlertDialogDescription>
+							Are you sure you want to delete{' '}
+							<strong>{equipmentToDelete?.name}</strong>? This action cannot be
+							undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={deleteMutation.isPending}>
+							Cancel
+						</AlertDialogCancel>
+
+						<AlertDialogAction
+							className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+							disabled={deleteMutation.isPending}
+							onClick={() => {
+								if (equipmentToDelete) {
+									deleteMutation.mutate(equipmentToDelete.id);
+									setEquipmentToDelete(null);
+								}
+							}}
+						>
+							{deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }
