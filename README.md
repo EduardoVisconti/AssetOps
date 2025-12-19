@@ -1,36 +1,168 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Equipment Dashboard
 
-## Getting Started
+A modern **Equipment Management Dashboard** built with **Next.js 14 (App Router)**, **TypeScript**, **Firebase**, **React Query**, and **shadcn/ui**.  
+This project was designed as a professional, production‑style demo focusing on clean architecture, UX polish, and real backend integration.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 🚀 Tech Stack
+
+### Frontend
+
+- **Next.js 14** (App Router)
+- **TypeScript**
+- **React Hook Form + Zod** (forms & validation)
+- **TanStack React Query** (data fetching & cache)
+- **shadcn/ui** (Radix UI + Tailwind CSS)
+- **Lucide Icons**
+- **Sonner** (toasts / notifications)
+
+### Backend / Services
+
+- **Firebase Authentication** (Email & Password)
+- **Firestore (Cloud Firestore)** as database
+
+---
+
+## ✨ Features
+
+- 🔐 **Authentication**
+  - Email/password login (Firebase Auth)
+  - Protected routes using `(auth)` and `(protected)` route groups
+  - Logout functionality
+- 📋 **Equipments CRUD**
+  - Create, edit, delete equipments
+  - Single reusable form for Add / Edit
+  - Firestore persistence
+- 📊 **Data Table**
+  - Generic reusable table component
+  - Filtering
+  - Pagination (Next / Previous)
+  - Actions menu (Edit / Delete)
+- 🧠 **UX & Reliability**
+  - Skeleton loaders (initial loading)
+  - Empty state with CTA
+  - Confirmation dialog for destructive actions
+  - Disabled states to prevent double actions
+  - Toast feedback for success and error
+- 🔒 **Security**
+  - Firestore Security Rules
+  - Auth‑protected database access
+  - Data shape validation at rule level
+
+---
+
+## 🗂️ Project Structure (Simplified)
+
+```
+app/
+├─ (auth)/
+│  └─ login/
+│     ├─ page.tsx
+│     └─ _components/
+│        └─ forms/
+│           └─ login-form.tsx
+│
+├─ (protected)/
+│  ├─ dashboard/
+│  │  └─ page.tsx
+│  └─ equipments/
+│     ├─ page.tsx
+│     ├─ action/
+│     │  └─ page.tsx
+│     └─ _components/
+│        ├─ form/
+│        │  └─ equipment-form.tsx
+│        └─ sections/
+│           └─ table-section.tsx
+│
+components/
+├─ core/
+│  ├─ tables/
+│  │  └─ data-table.tsx
+│  └─ navigation/
+│     └─ app-sidebar.tsx
+│
+context/
+└─ auth-context.tsx
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🔧 Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create a `.env.local` file at the root:
 
-## Learn More
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=your_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_bucket
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🔥 Firestore Security Rules
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```js
+rules_version = '2';
 
-## Deploy on Vercel
+service cloud.firestore {
+  match /databases/{database}/documents {
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+    match /equipments/{equipmentId} {
+      allow read, write: if request.auth != null
+        && request.resource.data.keys().hasOnly([
+          'name',
+          'serialNumber',
+          'status',
+          'purchaseDate',
+          'lastServiceDate'
+        ])
+        && request.resource.data.status in ['active', 'inactive', 'maintenance'];
+    }
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+```
+
+---
+
+## 🧪 Running Locally
+
+```bash
+npm install
+npm run dev
+```
+
+Open: http://localhost:3000
+
+---
+
+## 🎯 Project Goals
+
+This project intentionally focuses on:
+
+- Clean and scalable architecture
+- Real backend integration (no mock-only app)
+- UX patterns used in production dashboards
+- Clear separation of concerns
+- Minimal but professional Auth implementation
+
+---
+
+## 👤 Author
+
+Built by **Eduardo Visconti**  
+Focused on frontend engineering, UX quality, and modern React ecosystems.
+
+---
+
+## 📜 License
+
+This project is for demonstration and portfolio purposes.
