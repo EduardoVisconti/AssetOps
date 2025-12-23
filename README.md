@@ -1,168 +1,165 @@
 # Equipment Dashboard
 
-A modern **Equipment Management Dashboard** built with **Next.js 14 (App Router)**, **TypeScript**, **Firebase**, **React Query**, and **shadcn/ui**.  
-This project was designed as a professional, production‑style demo focusing on clean architecture, UX polish, and real backend integration.
+A modern **Equipment Management Dashboard** built with **Next.js 14**, designed to demonstrate real-world frontend architecture, data handling, and UI/UX best practices.
+
+This project focuses on **clarity, scalability, and professional-grade tooling**, avoiding unnecessary complexity while showcasing strong technical decisions.
 
 ---
 
-## 🚀 Tech Stack
+## 🚀 Live Demo
+
+- **Production URL:**  
+  https://equipment-dashboard-three.vercel.app/
+
+- **Repository:**  
+  https://github.com/EduardoVisconti/equipment-dashboard
+
+---
+
+## 🧱 Tech Stack
 
 ### Frontend
 
-- **Next.js 14** (App Router)
-- **TypeScript**
-- **React Hook Form + Zod** (forms & validation)
-- **TanStack React Query** (data fetching & cache)
-- **shadcn/ui** (Radix UI + Tailwind CSS)
-- **Lucide Icons**
-- **Sonner** (toasts / notifications)
+- Next.js 14 (App Router)
+- TypeScript
+- React
+- Tailwind CSS
+- shadcn/ui
+- Recharts (via shadcn charts)
+
+### State & Forms
+
+- TanStack React Query
+- React Hook Form
+- Zod
 
 ### Backend / Services
 
-- **Firebase Authentication** (Email & Password)
-- **Firestore (Cloud Firestore)** as database
+- Firebase Firestore
+- Firebase Authentication (Email / Password)
+
+### Tooling
+
+- Vercel (Deployment)
+- ESLint
+- Prettier
+- Conventional Commits
 
 ---
 
 ## ✨ Features
 
-- 🔐 **Authentication**
-  - Email/password login (Firebase Auth)
-  - Protected routes using `(auth)` and `(protected)` route groups
-  - Logout functionality
-- 📋 **Equipments CRUD**
-  - Create, edit, delete equipments
-  - Single reusable form for Add / Edit
-  - Firestore persistence
-- 📊 **Data Table**
-  - Generic reusable table component
-  - Filtering
-  - Pagination (Next / Previous)
-  - Actions menu (Edit / Delete)
-- 🧠 **UX & Reliability**
-  - Skeleton loaders (initial loading)
-  - Empty state with CTA
-  - Confirmation dialog for destructive actions
-  - Disabled states to prevent double actions
-  - Toast feedback for success and error
-- 🔒 **Security**
-  - Firestore Security Rules
-  - Auth‑protected database access
-  - Data shape validation at rule level
+### Authentication
+
+- Email & password authentication with Firebase
+- Protected routes using Next.js route groups
+- Firestore write operations secured by authentication
+
+### Equipment Management (CRUD)
+
+- Equipment listing with pagination
+- Create new equipment
+- Edit existing equipment
+- Delete with confirmation dialog
+- Shared form for create/edit actions
+- Schema validation with Zod
+- Optimistic UI updates via React Query
+
+### Data Table
+
+- Reusable generic DataTable component
+- Column filtering
+- Pagination
+- Loading and empty states
+- Action menus (edit / delete)
+
+### Analytics Dashboard
+
+Built with shadcn/ui charts + Recharts, using real data:
+
+- Pie Chart — Equipment distribution by status
+- Bar Chart — Status comparison
+- Area Chart — Equipment growth over time
+
+### Command Palette (Cmd / Ctrl + K)
+
+- Global command palette using shadcn Command
+- Keyboard-first navigation
+- Quick access to Dashboard, Equipments, Analytics and Add Equipment
+
+### UX & UI Enhancements
+
+- Skeleton loaders
+- Toast notifications (Sonner)
+- Confirmation dialogs
+- Clean empty states
+- Dark / Light mode support
+
+---
+
+## 🔐 Firebase Security Model
+
+Firestore rules are intentionally structured to support Server Components:
+
+allow read: if true;  
+allow write: if request.auth != null;
+
+### Why this approach?
+
+- Server Components do not have access to Firebase Auth context
+- Public reads allow SSR data fetching
+- Write operations remain protected by authentication
 
 ---
 
 ## 🗂️ Project Structure (Simplified)
 
-```
 app/
-├─ (auth)/
-│  └─ login/
-│     ├─ page.tsx
-│     └─ _components/
-│        └─ forms/
-│           └─ login-form.tsx
-│
-├─ (protected)/
-│  ├─ dashboard/
-│  │  └─ page.tsx
-│  └─ equipments/
-│     ├─ page.tsx
-│     ├─ action/
-│     │  └─ page.tsx
-│     └─ _components/
-│        ├─ form/
-│        │  └─ equipment-form.tsx
-│        └─ sections/
-│           └─ table-section.tsx
-│
-components/
-├─ core/
-│  ├─ tables/
-│  │  └─ data-table.tsx
-│  └─ navigation/
-│     └─ app-sidebar.tsx
-│
-context/
-└─ auth-context.tsx
-```
+(auth)/login  
+(protected)/dashboard  
+(protected)/equipments  
+(protected)/analytics
+
+components/core (headers, navigation, tables, overlays, toggles)  
+components/ui (shadcn)  
+data-access (Firestore logic)  
+types
 
 ---
 
-## 🔧 Environment Variables
+## 🧠 Key Design Decisions
 
-Create a `.env.local` file at the root:
-
-```env
-NEXT_PUBLIC_FIREBASE_API_KEY=your_key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_bucket
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
-```
-
----
-
-## 🔥 Firestore Security Rules
-
-```js
-rules_version = '2';
-
-service cloud.firestore {
-  match /databases/{database}/documents {
-
-    match /equipments/{equipmentId} {
-      allow read, write: if request.auth != null
-        && request.resource.data.keys().hasOnly([
-          'name',
-          'serialNumber',
-          'status',
-          'purchaseDate',
-          'lastServiceDate'
-        ])
-        && request.resource.data.status in ['active', 'inactive', 'maintenance'];
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
-```
+- shadcn/ui for composability and flexibility
+- React Query for predictable server-state management
+- Single form for add/edit to reduce duplication
+- Charts added only where they provide meaningful insight
+- Minimal but scalable folder structure
+- Focus on clarity over abstraction
 
 ---
 
 ## 🧪 Running Locally
 
-```bash
-npm install
+git clone https://github.com/EduardoVisconti/equipment-dashboard  
+cd equipment-dashboard  
+npm install  
 npm run dev
-```
 
-Open: http://localhost:3000
-
----
-
-## 🎯 Project Goals
-
-This project intentionally focuses on:
-
-- Clean and scalable architecture
-- Real backend integration (no mock-only app)
-- UX patterns used in production dashboards
-- Clear separation of concerns
-- Minimal but professional Auth implementation
+Create a .env.local file with your Firebase credentials.
 
 ---
 
-## 👤 Author
+## 🏁 Project Status
 
-Built by **Eduardo Visconti**  
-Focused on frontend engineering, UX quality, and modern React ecosystems.
+Feature complete  
+Production-ready demo  
+Clean architecture  
+No known bugs
 
 ---
 
-## 📜 License
+## 👨‍💻 Author
 
-This project is for demonstration and portfolio purposes.
+Eduardo Visconti  
+Frontend Developer  
+Focused on modern React, UX-driven design, and scalable frontend systems.
