@@ -16,6 +16,20 @@ This project focuses on **clarity, scalability, and professional-grade tooling**
 
 ---
 
+## 🔑 Demo Access
+
+This project includes a **public demo account** for evaluation purposes.
+
+**Demo credentials:**
+
+- Email: `client@test.com`
+- Password: `123456`
+
+> ⚠️ This account is restricted to demo usage only.  
+> No sensitive data is stored, and the database can be reset at any time.
+
+---
+
 ## 🧱 Tech Stack
 
 ### Frontend
