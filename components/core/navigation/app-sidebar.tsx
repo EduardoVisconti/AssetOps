@@ -1,18 +1,9 @@
 'use client';
 
 import * as React from 'react';
-import {
-	BookOpen,
-	Bot,
-	Frame,
-	Map,
-	PieChart,
-	Settings2,
-	SquareTerminal
-} from 'lucide-react';
+import { LayoutDashboard, Wrench, LineChart } from 'lucide-react';
 
 import { NavMain } from '@/components/core/navigation/nav-main';
-import { NavProjects } from '@/components/core/navigation/nav-projects';
 import { NavUser } from '@/components/core/navigation/nav-user';
 import {
 	Sidebar,
@@ -24,115 +15,27 @@ import {
 } from '@/components/ui/sidebar';
 import Link from 'next/link';
 
-// This is sample data.
 const data = {
 	user: {
-		name: 'shadcn',
-		email: 'm@example.com',
+		name: 'User',
+		email: 'user@example.com',
 		avatar: '/avatars/shadcn.jpg'
 	},
 	navMain: [
 		{
-			title: 'Playground',
-			url: '#',
-			icon: SquareTerminal,
-			isActive: true,
-			items: [
-				{
-					title: 'Equipments',
-					url: '/equipments'
-				},
-				{
-					title: 'Analytics',
-					url: '/analytics'
-				},
-				{
-					title: 'Settings',
-					url: '#'
-				}
-			]
+			title: 'Dashboard',
+			url: '/dashboard',
+			icon: LayoutDashboard
 		},
 		{
-			title: 'Models',
-			url: '#',
-			icon: Bot,
-			items: [
-				{
-					title: 'Genesis',
-					url: '#'
-				},
-				{
-					title: 'Explorer',
-					url: '#'
-				},
-				{
-					title: 'Quantum',
-					url: '#'
-				}
-			]
+			title: 'Equipments',
+			url: '/equipments',
+			icon: Wrench
 		},
 		{
-			title: 'Documentation',
-			url: '#',
-			icon: BookOpen,
-			items: [
-				{
-					title: 'Introduction',
-					url: '#'
-				},
-				{
-					title: 'Get Started',
-					url: '#'
-				},
-				{
-					title: 'Tutorials',
-					url: '#'
-				},
-				{
-					title: 'Changelog',
-					url: '#'
-				}
-			]
-		},
-		{
-			title: 'Settings',
-			url: '#',
-			icon: Settings2,
-			items: [
-				{
-					title: 'General',
-					url: '#'
-				},
-				{
-					title: 'Team',
-					url: '#'
-				},
-				{
-					title: 'Billing',
-					url: '#'
-				},
-				{
-					title: 'Limits',
-					url: '#'
-				}
-			]
-		}
-	],
-	projects: [
-		{
-			name: 'Design Engineering',
-			url: '#',
-			icon: Frame
-		},
-		{
-			name: 'Sales & Marketing',
-			url: '#',
-			icon: PieChart
-		},
-		{
-			name: 'Travel',
-			url: '#',
-			icon: Map
+			title: 'Analytics',
+			url: '/analytics',
+			icon: LineChart
 		}
 	]
 };
@@ -148,23 +51,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 			<SidebarHeader className='h-[60px] border-b flex items-center justify-center'>
 				<Link href={'/dashboard'}>
 					{open ? (
-						<p className='text-base font-mono font-extrabold'>
-							Equipment Dashboard
-						</p>
+						<p className='text-base font-mono font-extrabold'>AssetOps</p>
 					) : (
 						<p className='bg-primary h-[20px] w-[20px] text-xs rounded-sm flex items-center justify-center text-background'>
-							ED
+							AO
 						</p>
 					)}
 				</Link>
 			</SidebarHeader>
+
 			<SidebarContent>
 				<NavMain items={data.navMain} />
-				<NavProjects projects={data.projects} />
 			</SidebarContent>
+
 			<SidebarFooter>
-				<NavUser user={data.user} />
+				<NavUser />
 			</SidebarFooter>
+
 			<SidebarRail />
 		</Sidebar>
 	);
