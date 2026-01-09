@@ -75,7 +75,7 @@ export function LoginForm({ className }: React.ComponentProps<'form'>) {
 							aria-disabled
 							onClick={(e) => e.preventDefault()}
 						>
-							Forgot password? (Coming soon)
+							Forgot password?
 						</Link>
 					</div>
 					<Input
