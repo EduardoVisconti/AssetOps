@@ -40,7 +40,7 @@ export default async function EquipmentActionPage({ searchParams }: PageProps) {
 				}
 			/>
 
-			<Card className='mx-auto w-full max-w-2xl'>
+			<Card className='mx-auto w-full max-w-2xl mt-6'>
 				<CardContent className='pt-6'>
 					<EquipmentForm
 						action={action}

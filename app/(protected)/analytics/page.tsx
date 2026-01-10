@@ -453,7 +453,7 @@ export default function AnalyticsPage() {
 					)}
 				</div>
 
-				{/* CHARTS: break earlier (md), and stack on small quickly */}
+				{/* Charts grid */}
 				<div className='grid gap-6 xl:grid-cols-2'>
 					{/* Pie */}
 					<Card className='min-w-0'>
