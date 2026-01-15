@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
 import { ChartContainer } from '@/components/ui/chart';
-import { ResponsiveContainer, Pie, PieChart, Cell, Tooltip } from 'recharts';
+import { Pie, PieChart, Cell, Tooltip } from 'recharts';
 
 function safeDate(value?: string) {
 	if (!value) return null;
@@ -33,8 +33,19 @@ function safeDate(value?: string) {
 	}
 }
 
-function getNextServiceDate(eq: Equipment) {
-	return safeDate((eq as any).nextServiceDate);
+function deriveNextServiceDate(eq: Equipment) {
+	const anyEq = eq as any;
+
+	// 1) se existir no Firestore, usa
+	const next = safeDate(anyEq?.nextServiceDate);
+	if (next) return next;
+
+	// 2) senão, calcula: lastServiceDate + interval (default 180)
+	const last = safeDate(eq.lastServiceDate);
+	if (!last) return null;
+
+	const interval = anyEq?.serviceIntervalDays ?? 180;
+	return addDays(last, interval);
 }
 
 function StatusTooltip({
@@ -104,7 +115,7 @@ export default function DashboardPage() {
 			[];
 
 		for (const eq of equipments) {
-			const next = getNextServiceDate(eq);
+			const next = deriveNextServiceDate(eq);
 			if (!next) continue;
 
 			if (isBefore(next, today)) overdue += 1;
@@ -288,7 +299,7 @@ export default function DashboardPage() {
 										href='/equipments'
 									/>
 									<PriorityRow
-										label='Service policy: every 180 days'
+										label='Service policy: default every 180 days'
 										tone='ok'
 										href='/analytics'
 									/>
