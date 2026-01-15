@@ -1,15 +1,16 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
-import { createEquipment, updateEquipment } from '@/data-access/equipments';
+import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { addDays, isAfter, isBefore, parseISO, format } from 'date-fns';
+import { addDays, format, isAfter, isBefore, parseISO } from 'date-fns';
 
 import type { Equipment } from '@/types/equipment';
+import { createEquipment, updateEquipment } from '@/data-access/equipments';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -46,9 +47,12 @@ const equipmentSchema = z
 		purchaseDate: z.string().min(1, 'Purchase date is required'),
 		lastServiceDate: z.string().min(1, 'Last service date is required'),
 
+		// pode ficar vazio -> vira undefined no payload
 		nextServiceDate: z.string().optional(),
 
-		serviceIntervalDays: z.number().int().min(1).optional(),
+		// input type=number chega como string -> coerce resolve
+		// default deixa o INPUT aceitar undefined, mas o OUTPUT vira number
+		serviceIntervalDays: z.coerce.number().int().min(1).default(180),
 
 		location: z.string().optional(),
 		owner: z.string().optional()
@@ -60,9 +64,11 @@ const equipmentSchema = z
 		const last = values.lastServiceDate
 			? parseISO(values.lastServiceDate)
 			: null;
-		const next = values.nextServiceDate
-			? parseISO(values.nextServiceDate)
-			: null;
+
+		const next =
+			values.nextServiceDate && values.nextServiceDate.trim()
+				? parseISO(values.nextServiceDate)
+				: null;
 
 		if (purchase && isAfter(purchase, today)) {
 			ctx.addIssue({
@@ -89,7 +95,10 @@ const equipmentSchema = z
 		}
 	});
 
-type EquipmentFormValues = z.infer<typeof equipmentSchema>;
+// ✅ Form usa o INPUT (o que vem do usuário)
+type EquipmentFormValues = z.input<typeof equipmentSchema>;
+// ✅ Output (após parse) tem defaults aplicados
+type EquipmentParsedValues = z.output<typeof equipmentSchema>;
 
 /* ---------------- FORM ---------------- */
 
@@ -106,11 +115,13 @@ export default function EquipmentForm({
 			name: equipment?.name ?? '',
 			serialNumber: equipment?.serialNumber ?? '',
 			status: equipment?.status ?? 'active',
+
 			purchaseDate: equipment?.purchaseDate ?? '',
 			lastServiceDate: equipment?.lastServiceDate ?? '',
 
 			nextServiceDate: equipment?.nextServiceDate ?? '',
 
+			// aqui pode ser número, o schema coerce/default garante o resto
 			serviceIntervalDays: equipment?.serviceIntervalDays ?? 180,
 
 			location: equipment?.location ?? '',
@@ -144,30 +155,36 @@ export default function EquipmentForm({
 		action === 'add' ? createMutation.isPending : updateMutation.isPending;
 
 	function onSubmit(values: EquipmentFormValues) {
-		const interval = values.serviceIntervalDays ?? 180;
+		// ✅ aqui resolve TUDO: aplica default e garante types certinhos
+		const parsed: EquipmentParsedValues = equipmentSchema.parse(values);
 
-		// ✅ se não preencher next, calcula automaticamente
-		let next = values.nextServiceDate?.trim();
-		if (!next && values.lastServiceDate) {
-			const computed = addDays(parseISO(values.lastServiceDate), interval);
+		const interval = parsed.serviceIntervalDays;
+
+		const rawNext = parsed.nextServiceDate?.trim();
+		let next: string | undefined = rawNext || undefined;
+
+		if (!next && parsed.lastServiceDate) {
+			const computed = addDays(parseISO(parsed.lastServiceDate), interval);
 			next = format(computed, 'yyyy-MM-dd');
 		}
 
 		const payload: Omit<Equipment, 'id'> = {
-			name: values.name,
-			serialNumber: values.serialNumber,
-			status: values.status,
-			purchaseDate: values.purchaseDate,
-			lastServiceDate: values.lastServiceDate,
+			name: parsed.name,
+			serialNumber: parsed.serialNumber,
+			status: parsed.status,
 
-			nextServiceDate: next || undefined,
+			purchaseDate: parsed.purchaseDate,
+			lastServiceDate: parsed.lastServiceDate,
+
+			nextServiceDate: next,
 			serviceIntervalDays: interval,
 
-			location: values.location?.trim() || undefined,
-			owner: values.owner?.trim() || undefined
+			location: parsed.location?.trim() || undefined,
+			owner: parsed.owner?.trim() || undefined
 		};
 
 		if (action === 'add') createMutation.mutate(payload);
+
 		if (action === 'edit' && equipment?.id) {
 			updateMutation.mutate({ id: equipment.id, data: payload });
 		}
@@ -181,23 +198,15 @@ export default function EquipmentForm({
 			>
 				<FormField
 					control={form.control}
-					name='serviceIntervalDays'
+					name='name'
 					render={({ field }) => (
 						<FormItem>
-							<FormLabel>Service Interval (days)</FormLabel>
+							<FormLabel>Asset Name</FormLabel>
 							<FormControl>
 								<Input
-									type='number'
-									min={1}
-									step={1}
+									{...field}
 									disabled={isSaving}
-									value={field.value ?? 180}
-									onChange={(e) => {
-										const val = e.target.value;
-										// se apagar o input, mantém 180 (evita NaN)
-										if (val === '') return field.onChange(180);
-										field.onChange(Number(val));
-									}}
+									placeholder='e.g. Hydraulic Dock Lift – Bay 1'
 								/>
 							</FormControl>
 							<FormMessage />
@@ -215,7 +224,7 @@ export default function EquipmentForm({
 								<Input
 									{...field}
 									disabled={isSaving}
-									placeholder='e.g. FL-TPA-0012'
+									placeholder='e.g. FL-TAM-DOCK-HYD-0001'
 								/>
 							</FormControl>
 							<FormMessage />
@@ -249,23 +258,85 @@ export default function EquipmentForm({
 					)}
 				/>
 
-				<FormField
-					control={form.control}
-					name='owner'
-					render={({ field }) => (
-						<FormItem>
-							<FormLabel>Owner</FormLabel>
-							<FormControl>
-								<Input
-									{...field}
-									disabled={isSaving}
-									placeholder='e.g. Operations Team'
-								/>
-							</FormControl>
-							<FormMessage />
-						</FormItem>
-					)}
-				/>
+				<div className='grid grid-cols-1 gap-6 sm:grid-cols-2'>
+					<FormField
+						control={form.control}
+						name='purchaseDate'
+						render={({ field }) => (
+							<FormItem>
+								<FormLabel>Purchase Date</FormLabel>
+								<FormControl>
+									<Input
+										type='date'
+										disabled={isSaving}
+										{...field}
+									/>
+								</FormControl>
+								<FormMessage />
+							</FormItem>
+						)}
+					/>
+
+					<FormField
+						control={form.control}
+						name='lastServiceDate'
+						render={({ field }) => (
+							<FormItem>
+								<FormLabel>Last Service Date</FormLabel>
+								<FormControl>
+									<Input
+										type='date'
+										disabled={isSaving}
+										{...field}
+									/>
+								</FormControl>
+								<FormMessage />
+							</FormItem>
+						)}
+					/>
+				</div>
+
+				<div className='grid grid-cols-1 gap-6 sm:grid-cols-2'>
+					<FormField
+						control={form.control}
+						name='nextServiceDate'
+						render={({ field }) => (
+							<FormItem>
+								<FormLabel>Next Service Date</FormLabel>
+								<FormControl>
+									<Input
+										type='date'
+										disabled={isSaving}
+										{...field}
+									/>
+								</FormControl>
+								<FormMessage />
+							</FormItem>
+						)}
+					/>
+
+					<FormField
+						control={form.control}
+						name='serviceIntervalDays'
+						render={({ field }) => (
+							<FormItem>
+								<FormLabel>Service Interval (days)</FormLabel>
+								<FormControl>
+									<Input
+										type='number'
+										min={1}
+										step={1}
+										disabled={isSaving}
+										value={field.value ?? 180}
+										// manda string mesmo, o schema faz coerce
+										onChange={(e) => field.onChange(e.target.value)}
+									/>
+								</FormControl>
+								<FormMessage />
+							</FormItem>
+						)}
+					/>
+				</div>
 
 				<FormField
 					control={form.control}
@@ -287,70 +358,15 @@ export default function EquipmentForm({
 
 				<FormField
 					control={form.control}
-					name='purchaseDate'
+					name='owner'
 					render={({ field }) => (
 						<FormItem>
-							<FormLabel>Purchase Date</FormLabel>
+							<FormLabel>Owner</FormLabel>
 							<FormControl>
 								<Input
-									type='date'
-									disabled={isSaving}
 									{...field}
-								/>
-							</FormControl>
-							<FormMessage />
-						</FormItem>
-					)}
-				/>
-
-				<FormField
-					control={form.control}
-					name='lastServiceDate'
-					render={({ field }) => (
-						<FormItem>
-							<FormLabel>Last Service Date</FormLabel>
-							<FormControl>
-								<Input
-									type='date'
 									disabled={isSaving}
-									{...field}
-								/>
-							</FormControl>
-							<FormMessage />
-						</FormItem>
-					)}
-				/>
-
-				<FormField
-					control={form.control}
-					name='nextServiceDate'
-					render={({ field }) => (
-						<FormItem>
-							<FormLabel>Next Service Date</FormLabel>
-							<FormControl>
-								<Input
-									type='date'
-									disabled={isSaving}
-									{...field}
-								/>
-							</FormControl>
-							<FormMessage />
-						</FormItem>
-					)}
-				/>
-
-				<FormField
-					control={form.control}
-					name='serviceIntervalDays'
-					render={({ field }) => (
-						<FormItem>
-							<FormLabel>Service Interval (days)</FormLabel>
-							<FormControl>
-								<Input
-									type='number'
-									min={1}
-									disabled={isSaving}
-									{...field}
+									placeholder='e.g. Operations Team'
 								/>
 							</FormControl>
 							<FormMessage />
