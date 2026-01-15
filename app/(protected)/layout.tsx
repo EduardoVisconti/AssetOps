@@ -1,14 +1,19 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
 import { AppSidebar } from '@/components/core/navigation/app-sidebar';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import EquipmentDashboardQueryClientProvider from '@/components/providers/query-provider';
 import { useAuth } from '@/context/auth-context';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 import { CommandPalette } from '@/components/core/overlays/command-palette';
 
-const PrivateLayout = ({ children }: { children: React.ReactNode }) => {
+export default function PrivateLayout({
+	children
+}: {
+	children: React.ReactNode;
+}) {
 	const { user, loading } = useAuth();
 	const router = useRouter();
 
@@ -16,8 +21,9 @@ const PrivateLayout = ({ children }: { children: React.ReactNode }) => {
 		if (!loading && !user) {
 			router.replace('/login');
 		}
-	}, [user, loading, router]);
+	}, [loading, user, router]);
 
+	// 1) checando sessão
 	if (loading) {
 		return (
 			<div className='flex h-screen items-center justify-center'>
@@ -26,7 +32,14 @@ const PrivateLayout = ({ children }: { children: React.ReactNode }) => {
 		);
 	}
 
-	if (!user) return null;
+	// 2) não logado -> mostra "redirecting" (NÃO retorna null)
+	if (!user) {
+		return (
+			<div className='flex h-screen items-center justify-center'>
+				<p className='text-sm text-muted-foreground'>Redirecting to login…</p>
+			</div>
+		);
+	}
 
 	return (
 		<SidebarProvider>
@@ -39,6 +52,4 @@ const PrivateLayout = ({ children }: { children: React.ReactNode }) => {
 			</EquipmentDashboardQueryClientProvider>
 		</SidebarProvider>
 	);
-};
-
-export default PrivateLayout;
+}
