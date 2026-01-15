@@ -88,6 +88,38 @@ function safeDate(value?: string) {
 	}
 }
 
+function getCreatedAt(eq: Equipment) {
+	const anyEq = eq as any;
+
+	// Firestore Timestamp
+	if (anyEq?.createdAt?.toDate) return anyEq.createdAt.toDate() as Date;
+
+	// fallback string
+	if (eq.purchaseDate) {
+		try {
+			return parseISO(eq.purchaseDate);
+		} catch {
+			return null;
+		}
+	}
+
+	return null;
+}
+
+function toDateAny(value: any): Date | null {
+	if (!value) return null;
+	if (value?.toDate && typeof value.toDate === 'function')
+		return value.toDate(); // Firestore Timestamp
+	if (typeof value === 'string') {
+		try {
+			return parseISO(value);
+		} catch {
+			return null;
+		}
+	}
+	return null;
+}
+
 /**
  * If nextServiceDate doesn’t exist, derive it from lastServiceDate (+180d).
  * Keeps analytics meaningful without expanding schema right now.
@@ -219,19 +251,10 @@ export default function AnalyticsPage() {
 
 	const filtered = useMemo(() => {
 		return equipments.filter((eq) => {
-			const purchase = safeDate(eq.purchaseDate);
-			const last = safeDate(eq.lastServiceDate);
-			const next = deriveNextServiceDate(eq); // já trata nextServiceDate OU last+180
-
-			const candidates = [purchase, last, next].filter(Boolean) as Date[];
-
-			// Se não tiver nenhuma data válida, não exclui do analytics (evita sumir tudo)
+			const created = getCreatedAt(eq);
 			const inRange =
-				candidates.length === 0
-					? true
-					: candidates.some((d) =>
-							isWithinInterval(d, { start: rangeStart, end: today })
-					  );
+				!created ||
+				isWithinInterval(created, { start: rangeStart, end: today });
 
 			const statusOk =
 				statusFilter === 'all' ? true : eq.status === statusFilter;
@@ -304,27 +327,20 @@ export default function AnalyticsPage() {
 	}, [filtered, today]);
 
 	const timeSeriesData = useMemo(() => {
-		// Janela fixa de 12 meses (mais “dashboard real”)
 		const start = subDays(today, 365);
-
-		// cria lista YYYY-MM contínua mês a mês
 		const months = eachMonthOfInterval({ start, end: today }).map((d) =>
 			format(d, 'yyyy-MM')
 		);
 
-		// conta assets por mês
 		const counts = filtered.reduce((acc, eq) => {
-			const month = eq.purchaseDate?.slice(0, 7); // YYYY-MM
-			if (!month) return acc;
+			const created = getCreatedAt(eq);
+			if (!created) return acc;
+			const month = format(created, 'yyyy-MM');
 			acc[month] = (acc[month] || 0) + 1;
 			return acc;
 		}, {} as Record<string, number>);
 
-		// preenche meses faltantes com 0 (visual profissional)
-		return months.map((month) => ({
-			month,
-			total: counts[month] ?? 0
-		}));
+		return months.map((month) => ({ month, total: counts[month] ?? 0 }));
 	}, [filtered, today]);
 
 	const insights = useMemo(() => {
