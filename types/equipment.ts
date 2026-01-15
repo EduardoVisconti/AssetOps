@@ -1,15 +1,24 @@
+import type { Timestamp, FieldValue } from 'firebase/firestore';
+
 export type EquipmentStatus = 'active' | 'inactive' | 'maintenance';
 
 export interface Equipment {
 	id: string;
+
 	name: string;
 	serialNumber: string;
 	status: EquipmentStatus;
 
-	purchaseDate: string;
-	lastServiceDate: string;
+	purchaseDate: string; // "yyyy-MM-dd"
+	lastServiceDate: string; // "yyyy-MM-dd"
+	nextServiceDate?: string; // "yyyy-MM-dd"
 
-	nextServiceDate?: string; // usado pra "due soon / overdue" dashboard logic
-	location?: string;
+	serviceIntervalDays?: number;
+
 	owner?: string;
+	location?: string;
+
+	// ✅ Firestore timestamps (when writing, serverTimestamp() is FieldValue)
+	createdAt?: Timestamp | FieldValue;
+	updatedAt?: Timestamp | FieldValue;
 }
