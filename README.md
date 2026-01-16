@@ -1,8 +1,8 @@
-# Equipment Dashboard
+# AssetOps — Equipment Management Platform
 
-A modern **Equipment Management Dashboard** built with **Next.js 14**, designed to demonstrate real-world frontend architecture, data handling, and UI/UX best practices.
+A **production-grade Equipment & Operations Management platform** built with **Next.js 14**, focused on **real-world frontend architecture, data consistency, and decision-oriented dashboards**.
 
-This project focuses on **clarity, scalability, and professional-grade tooling**, avoiding unnecessary complexity while showcasing strong technical decisions.
+This project was designed to simulate how a **mid-size or enterprise operations team** would manage physical assets, maintenance cycles, and operational risk — with clarity, performance, and scalability in mind.
 
 ---
 
@@ -18,42 +18,37 @@ This project focuses on **clarity, scalability, and professional-grade tooling**
 
 ## 🔑 Demo Access
 
-This project includes a **public demo account** for evaluation purposes.
+A **public demo account** is available for evaluation.
 
-**Demo credentials:**
+**Credentials:**
 
 - Email: `client@test.com`
 - Password: `123456`
 
-> ⚠️ This account is restricted to demo usage only.  
-> No sensitive data is stored, and the database can be reset at any time.
+> ⚠️ Demo data is non-sensitive and may be reset at any time.
 
 ---
 
 ## 🧱 Tech Stack
 
 ### Frontend
-
 - Next.js 14 (App Router)
-- TypeScript
 - React
+- TypeScript
 - Tailwind CSS
 - shadcn/ui
-- Recharts (via shadcn charts)
+- Recharts (customized via shadcn chart container)
 
-### State & Forms
-
-- TanStack React Query
+### State & Data
+- TanStack React Query (server-state management)
 - React Hook Form
-- Zod
+- Zod (schema validation)
 
 ### Backend / Services
-
 - Firebase Firestore
 - Firebase Authentication (Email / Password)
 
 ### Tooling
-
 - Vercel (Deployment)
 - ESLint
 - Prettier
@@ -61,119 +56,157 @@ This project includes a **public demo account** for evaluation purposes.
 
 ---
 
-## ✨ Features
+## ✨ Core Features
 
-### Authentication
-
-- Email & password authentication with Firebase
+### 🔐 Authentication & Access Control
+- Firebase Email/Password authentication
 - Protected routes using Next.js route groups
-- Firestore write operations secured by authentication
+- Client-side session validation with loading states
+- Firestore writes restricted to authenticated users
 
-### Equipment Management (CRUD)
+---
 
-- Equipment listing with pagination
-- Create new equipment
-- Edit existing equipment
-- Delete with confirmation dialog
-- Shared form for create/edit actions
+### 🧰 Equipment Management (CRUD)
+- Create, edit, and delete assets
+- Shared form logic for add/edit flows
 - Schema validation with Zod
-- Optimistic UI updates via React Query
+- Automatic maintenance date calculation
+- Optional service interval per asset
+- Optimistic UI updates with React Query
 
-### Data Table
+**Tracked asset fields:**
+- Name
+- Serial number
+- Status (In Service / Maintenance / Out of Service)
+- Purchase date
+- Last service date
+- Next service date (manual or auto-derived)
+- Service interval (days)
+- Location
+- Owner
 
-- Reusable generic DataTable component
-- Column filtering
-- Pagination
-- Loading and empty states
-- Action menus (edit / delete)
+---
 
-### Analytics Dashboard
+### 📊 Operational Dashboard
+A real-time operational overview focused on **actionability**:
 
-Built with shadcn/ui charts + Recharts, using real data:
+- Total assets
+- Assets in service / out of service
+- Maintenance due (7d / 30d)
+- Overdue maintenance
+- Data quality score (critical fields completeness)
+- Priority alerts
+- At-risk assets list
+- Recent activity feed
 
-- Pie Chart — Equipment distribution by status
-- Bar Chart — Status comparison
-- Area Chart — Equipment growth over time
+> Dashboard metrics are derived dynamically from Firestore data — no mock logic.
 
-### Command Palette (Cmd / Ctrl + K)
+---
 
-- Global command palette using shadcn Command
+### 📈 Analytics Page
+A separate analytics view designed for **strategic insights**, not redundancy:
+
+- Assets in scope (filter-based)
+- Status distribution (Pie + Bar charts)
+- Maintenance trends
+- Assets created over time (Area chart)
+- Overdue & upcoming maintenance detection
+- Operational insights generated from live data
+- Time range and status filters
+
+> Analytics and Dashboard intentionally answer **different questions**.
+
+---
+
+### ⌨️ Command Palette (Cmd / Ctrl + K)
 - Keyboard-first navigation
-- Quick access to Dashboard, Equipments, Analytics and Add Equipment
+- Quick access to core actions and pages
+- Improves power-user workflow
 
-### UX & UI Enhancements
+---
 
+### 🎨 UX & UI Enhancements
 - Skeleton loaders
+- Empty states with guidance
 - Toast notifications (Sonner)
 - Confirmation dialogs
-- Clean empty states
-- Dark / Light mode support
+- Responsive layout (mobile → desktop)
+- Dark / Light mode
+- Consistent spacing & visual hierarchy
 
 ---
 
 ## 🔐 Firebase Security Model
 
-Firestore rules are intentionally structured to support Server Components:
+Firestore rules:
 
-allow read: if true;  
+```
+allow read: if true;
 allow write: if request.auth != null;
+```
 
-### Why this approach?
-
-- Server Components do not have access to Firebase Auth context
-- Public reads allow SSR data fetching
-- Write operations remain protected by authentication
+### Why?
+- Enables Server Component data fetching
+- Maintains write security
+- Matches real-world SSR constraints
 
 ---
 
 ## 🗂️ Project Structure (Simplified)
 
+```
 app/
-(auth)/login  
-(protected)/dashboard  
-(protected)/equipments  
-(protected)/analytics
+ ├─ (auth)/login
+ ├─ (protected)/dashboard
+ ├─ (protected)/equipments
+ ├─ (protected)/analytics
 
-components/core (headers, navigation, tables, overlays, toggles)  
-components/ui (shadcn)  
-data-access (Firestore logic)  
-types
+components/
+ ├─ core (navigation, headers, overlays)
+ ├─ ui (shadcn)
+
+data-access/
+ ├─ equipments (Firestore logic)
+
+types/
+```
 
 ---
 
-## 🧠 Key Design Decisions
+## 🧠 Architectural Decisions
 
-- shadcn/ui for composability and flexibility
-- React Query for predictable server-state management
-- Single form for add/edit to reduce duplication
-- Charts added only where they provide meaningful insight
-- Minimal but scalable folder structure
-- Focus on clarity over abstraction
+- Clear separation between **operational view** (Dashboard) and **analytical view** (Analytics)
+- React Query as the single source of server truth
+- Minimal schema, derived data where possible
+- Avoided premature abstractions
+- Strong emphasis on UX clarity and predictability
 
 ---
 
 ## 🧪 Running Locally
 
-git clone https://github.com/EduardoVisconti/equipment-dashboard  
-cd equipment-dashboard  
-npm install  
+```bash
+git clone https://github.com/EduardoVisconti/equipment-dashboard
+cd equipment-dashboard
+npm install
 npm run dev
+```
 
-Create a .env.local file with your Firebase credentials.
+Create a `.env.local` file with your Firebase credentials.
 
 ---
 
 ## 🏁 Project Status
 
-Feature complete  
-Production-ready demo  
-Clean architecture  
-No known bugs
+- Feature complete
+- Production-ready demo
+- Clean architecture
+- No known bugs
 
 ---
 
 ## 👨‍💻 Author
 
-Eduardo Visconti  
+**Eduardo Visconti**  
 Frontend Developer  
-Focused on modern React, UX-driven design, and scalable frontend systems.
+Focused on modern React, UX-driven systems, and scalable frontend architecture.
