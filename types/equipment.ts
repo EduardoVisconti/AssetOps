@@ -18,10 +18,12 @@ export interface Equipment {
 	owner?: string;
 	location?: string;
 
-	// ✅ Firestore timestamps (when writing, serverTimestamp() is FieldValue)
 	createdAt?: Timestamp | FieldValue;
 	updatedAt?: Timestamp | FieldValue;
 
 	createdBy?: string;
+	createdByEmail?: string;
+
 	updatedBy?: string;
+	updatedByEmail?: string;
 }

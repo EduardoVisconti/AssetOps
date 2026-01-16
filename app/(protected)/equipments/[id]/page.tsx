@@ -152,8 +152,12 @@ export default function AssetDetailsPage({
 		);
 	}
 
-	const createdBy = asset.createdBy ? truncateId(asset.createdBy) : '—';
-	const updatedBy = asset.updatedBy ? truncateId(asset.updatedBy) : '—';
+	const createdBy =
+		asset.createdByEmail ||
+		(asset.createdBy ? truncateId(asset.createdBy) : '—');
+	const updatedBy =
+		asset.updatedByEmail ||
+		(asset.updatedBy ? truncateId(asset.updatedBy) : '—');
 	const createdAt = formatTimestamp(asset.createdAt);
 	const updatedAt = formatTimestamp(asset.updatedAt);
 

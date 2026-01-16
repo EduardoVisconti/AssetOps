@@ -2,6 +2,9 @@
 
 import * as React from 'react';
 import { LayoutDashboard, Wrench, LineChart } from 'lucide-react';
+import { useAuth } from '@/context/auth-context';
+import { useUserRole } from '@/hooks/use-user-role';
+import { Badge } from '@/components/ui/badge';
 
 import { NavMain } from '@/components/core/navigation/nav-main';
 import { NavUser } from '@/components/core/navigation/nav-user';
@@ -42,6 +45,8 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 	const { open } = useSidebar();
+	const { user } = useAuth();
+	const { role, isAdmin, isLoading: roleLoading } = useUserRole();
 
 	return (
 		<Sidebar
@@ -66,6 +71,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
 			<SidebarFooter>
 				<NavUser />
+				<div className='mt-auto border-t p-3'>
+					<div className='flex items-center justify-between gap-2'>
+						<div className='min-w-0'>
+							<p className='mt-2 text-[11px] text-muted-foreground'>
+								{isAdmin ? 'Full access' : 'Read-only access'}
+							</p>
+						</div>
+
+						<Badge variant={isAdmin ? 'secondary' : 'outline'}>
+							{roleLoading ? '…' : role.toUpperCase()}
+						</Badge>
+					</div>
+				</div>
 			</SidebarFooter>
 
 			<SidebarRail />

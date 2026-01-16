@@ -53,7 +53,7 @@ export const getEquipmentById = async (
 
 export const createEquipment = async (
 	data: Omit<Equipment, 'id'>,
-	actorId: string
+	actor: { uid: string; email?: string | null }
 ): Promise<void> => {
 	const interval = data.serviceIntervalDays ?? 180;
 
@@ -66,8 +66,11 @@ export const createEquipment = async (
 
 	const payload: Omit<Equipment, 'id'> & Record<string, any> = {
 		...data,
-		createdBy: actorId,
-		updatedBy: actorId,
+		createdBy: actor.uid,
+		createdByEmail: actor.email ?? undefined,
+		updatedBy: actor.uid,
+		updatedByEmail: actor.email ?? undefined,
+
 		serviceIntervalDays: interval,
 		nextServiceDate: next,
 		createdAt: serverTimestamp(),
@@ -85,7 +88,7 @@ export const createEquipment = async (
 export const updateEquipment = async (
 	id: string,
 	data: Omit<Equipment, 'id'>,
-	actorId: string
+	actor: { uid: string; email?: string | null }
 ): Promise<void> => {
 	const ref = doc(db, 'equipments', id);
 
@@ -100,7 +103,8 @@ export const updateEquipment = async (
 
 	const payload: Omit<Equipment, 'id'> & Record<string, any> = {
 		...data,
-		updatedBy: actorId,
+		updatedBy: actor.uid,
+		updatedByEmail: actor.email ?? undefined,
 		serviceIntervalDays: interval,
 		nextServiceDate: next,
 		updatedAt: serverTimestamp()
@@ -137,13 +141,17 @@ export const getMaintenanceHistory = async (
 
 export const addMaintenanceRecord = async (
 	equipmentId: string,
-	data: Omit<MaintenanceRecord, 'id' | 'createdAt' | 'createdBy'>,
-	actorId: string
+	data: Omit<
+		MaintenanceRecord,
+		'id' | 'createdAt' | 'createdBy' | 'createdByEmail'
+	>,
+	actor: { uid: string; email?: string | null }
 ): Promise<void> => {
 	const payload: Omit<MaintenanceRecord, 'id'> & Record<string, any> = {
 		...data,
 		notes: data.notes?.trim() || undefined,
-		createdBy: actorId,
+		createdBy: actor.uid,
+		createdByEmail: actor.email ?? null,
 		createdAt: serverTimestamp()
 	};
 

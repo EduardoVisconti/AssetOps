@@ -10,6 +10,6 @@ export interface MaintenanceRecord {
 	notes?: string;
 
 	createdBy: string;
-
+	createdByEmail: string | null;
 	createdAt?: Timestamp | FieldValue;
 }

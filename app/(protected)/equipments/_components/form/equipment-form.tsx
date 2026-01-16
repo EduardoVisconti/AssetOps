@@ -138,7 +138,7 @@ export default function EquipmentForm({
 		mutationFn: async (payload: Omit<Equipment, 'id'>) => {
 			if (!user) throw new Error('Not authenticated');
 			if (!isAdmin) throw new Error('Not authorized');
-			await createEquipment(payload, user.uid);
+			await createEquipment(payload, { uid: user.uid, email: user.email });
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['equipments'] });
@@ -158,7 +158,7 @@ export default function EquipmentForm({
 		}) => {
 			if (!user) throw new Error('Not authenticated');
 			if (!isAdmin) throw new Error('Not authorized');
-			await updateEquipment(id, data, user.uid);
+			await updateEquipment(id, data, { uid: user.uid, email: user.email });
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['equipments'] });

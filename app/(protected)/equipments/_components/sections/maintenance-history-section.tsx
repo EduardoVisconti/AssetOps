@@ -104,7 +104,7 @@ export default function MaintenanceHistorySection({
 					type: parsed.type,
 					notes: parsed.notes?.trim() || undefined
 				},
-				user.uid
+				{ uid: user.uid, email: user.email }
 			);
 		},
 		onSuccess: () => {
@@ -288,7 +288,9 @@ export default function MaintenanceHistorySection({
 
 							<p className='text-xs text-muted-foreground'>
 								by{' '}
-								{r.createdBy
+								{r.createdByEmail
+									? r.createdByEmail
+									: r.createdBy
 									? `${r.createdBy.slice(0, 6)}…${r.createdBy.slice(-4)}`
 									: '—'}
 							</p>
