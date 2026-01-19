@@ -9,7 +9,11 @@ import { toast } from 'sonner';
 import { addDays, format, isAfter, isBefore, parseISO } from 'date-fns';
 
 import type { Equipment } from '@/types/equipment';
-import { createEquipment, updateEquipment } from '@/data-access/equipments';
+import {
+	createEquipment,
+	updateEquipment,
+	isSerialNumberTaken
+} from '@/data-access/equipments';
 
 import { useAuth } from '@/context/auth-context';
 import { useUserRole } from '@/hooks/use-user-role';
@@ -171,7 +175,7 @@ export default function EquipmentForm({
 	const isSaving =
 		action === 'add' ? createMutation.isPending : updateMutation.isPending;
 
-	function onSubmit(values: EquipmentFormValues) {
+	async function onSubmit(values: EquipmentFormValues) {
 		if (isAuthBlocked) {
 			toast.error('You must be signed in to perform this action.');
 			return;
@@ -207,6 +211,20 @@ export default function EquipmentForm({
 			location: parsed.location?.trim() || undefined,
 			owner: parsed.owner?.trim() || undefined
 		};
+
+		const serialTaken = await isSerialNumberTaken(
+			parsed.serialNumber,
+			action === 'edit' ? equipment?.id : undefined
+		);
+
+		if (serialTaken) {
+			form.setError('serialNumber', {
+				type: 'validate',
+				message: 'This serial number is already in use'
+			});
+			toast.error('Serial number already exists');
+			return;
+		}
 
 		if (action === 'add') createMutation.mutate(payload);
 
@@ -407,8 +425,8 @@ export default function EquipmentForm({
 							? 'Creating...'
 							: 'Updating...'
 						: action === 'add'
-						? 'Create Asset'
-						: 'Update Asset'}
+							? 'Create Asset'
+							: 'Update Asset'}
 				</Button>
 
 				{!isSaving && isRoleBlocked && !isAuthBlocked && (

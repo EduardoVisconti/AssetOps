@@ -7,6 +7,7 @@ export interface Equipment {
 
 	name: string;
 	serialNumber: string;
+	serialNumberNormalized?: string;
 	status: EquipmentStatus;
 
 	purchaseDate: string; // "yyyy-MM-dd"

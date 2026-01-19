@@ -14,12 +14,40 @@ import {
 	serverTimestamp,
 	query,
 	orderBy,
-	limit
+	limit,
+	where
 } from 'firebase/firestore';
 
 const equipmentsCollection = collection(db, 'equipments');
 
 /* ---------------- HELPERS ---------------- */
+
+function normalizeSerial(value: string) {
+	return value.trim().toUpperCase();
+}
+
+export async function isSerialNumberTaken(
+	serialNumber: string,
+	excludeEquipmentId?: string
+): Promise<boolean> {
+	const normalized = normalizeSerial(serialNumber);
+
+	const q = query(
+		equipmentsCollection,
+		where('serialNumberNormalized', '==', normalized),
+		limit(1)
+	);
+
+	const snapshot = await getDocs(q);
+
+	if (snapshot.empty) return false;
+
+	// se achou, pode ser o mesmo registro (em edit)
+	const first = snapshot.docs[0];
+	if (excludeEquipmentId && first.id === excludeEquipmentId) return false;
+
+	return true;
+}
 
 function computeNextServiceDate(lastServiceDate: string, intervalDays: number) {
 	const base = new Date(`${lastServiceDate}T00:00:00`);
@@ -91,6 +119,7 @@ export const createEquipment = async (
 
 	const payload: Omit<Equipment, 'id'> & Record<string, any> = {
 		...data,
+		serialNumberNormalized: normalizeSerial(data.serialNumber),
 		createdBy: actor.uid,
 		createdByEmail: actor.email ?? undefined,
 		updatedBy: actor.uid,
@@ -134,6 +163,7 @@ export const updateEquipment = async (
 
 	const payload: Omit<Equipment, 'id'> & Record<string, any> = {
 		...data,
+		serialNumberNormalized: normalizeSerial(data.serialNumber),
 		updatedBy: actor.uid,
 		updatedByEmail: actor.email ?? undefined,
 		serviceIntervalDays: interval,
