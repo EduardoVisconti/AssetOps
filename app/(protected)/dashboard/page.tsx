@@ -9,7 +9,8 @@ import {
 	CheckCircle2,
 	Clock,
 	Package,
-	Wrench
+	Wrench,
+	ShieldAlert
 } from 'lucide-react';
 
 import PageHeader from '@/components/core/headers/page-header';
@@ -31,6 +32,11 @@ function safeDate(value?: string) {
 	} catch {
 		return null;
 	}
+}
+
+function isArchivedAsset(eq: Equipment) {
+	// archivedAt pode ser Timestamp | FieldValue | null | undefined
+	return Boolean((eq as any)?.archivedAt);
 }
 
 function deriveNextServiceDate(eq: Equipment) {
@@ -86,26 +92,53 @@ export default function DashboardPage() {
 	const in7 = addDays(today, 7);
 	const in30 = addDays(today, 30);
 
-	const metrics = useMemo(() => {
-		const total = equipments.length;
+	const activeEquipments = useMemo(
+		() => equipments.filter((e) => !isArchivedAsset(e)),
+		[equipments]
+	);
 
-		const active = equipments.filter((e) => e.status === 'active').length;
-		const inactive = equipments.filter((e) => e.status === 'inactive').length;
-		const maintenance = equipments.filter(
+	const metrics = useMemo(() => {
+		const total = activeEquipments.length;
+
+		const active = activeEquipments.filter((e) => e.status === 'active').length;
+		const inactive = activeEquipments.filter(
+			(e) => e.status === 'inactive'
+		).length;
+		const maintenance = activeEquipments.filter(
 			(e) => e.status === 'maintenance'
 		).length;
 
-		const withSerial = equipments.filter((e) =>
+		// Data quality (breakdown)
+		const withSerial = activeEquipments.filter((e) =>
 			Boolean(e.serialNumber?.trim())
 		).length;
-		const withLastService = equipments.filter((e) =>
+
+		const withLastService = activeEquipments.filter((e) =>
 			Boolean(e.lastServiceDate?.trim())
 		).length;
 
+		const withOwner = activeEquipments.filter((e) =>
+			Boolean((e.owner ?? '').trim())
+		).length;
+
+		const withLocation = activeEquipments.filter((e) =>
+			Boolean((e.location ?? '').trim())
+		).length;
+
+		// next service: conta se tiver nextServiceDate OU se der pra derivar
+		const withNextService = activeEquipments.filter((e) => {
+			const next = deriveNextServiceDate(e);
+			return Boolean(next);
+		}).length;
+
+		// Score de qualidade (simples e defensável)
 		const quality =
 			total === 0
 				? 0
-				: Math.round((Math.min(withSerial, withLastService) / total) * 100);
+				: Math.round(
+						((withSerial + withLastService + withNextService) / (total * 3)) *
+							100
+					);
 
 		let overdue = 0;
 		let due7 = 0;
@@ -114,7 +147,7 @@ export default function DashboardPage() {
 		const dueSoonList: Array<Equipment & { _nextServiceDate?: Date | null }> =
 			[];
 
-		for (const eq of equipments) {
+		for (const eq of activeEquipments) {
 			const next = deriveNextServiceDate(eq);
 			if (!next) continue;
 
@@ -136,18 +169,99 @@ export default function DashboardPage() {
 			return ad - bd;
 		});
 
+		// Needs Attention (lista operacional)
+		type AttentionReason =
+			| 'Overdue maintenance'
+			| 'Maintenance due (30d)'
+			| 'Missing serial'
+			| 'Missing last service'
+			| 'Missing owner/location';
+
+		type AttentionItem = {
+			id: string;
+			name: string;
+			serialNumber?: string;
+			reasons: AttentionReason[];
+			score: number;
+			nextService?: Date | null;
+		};
+
+		const attentionItems: AttentionItem[] = [];
+
+		for (const eq of activeEquipments) {
+			const reasons: AttentionReason[] = [];
+			let score = 0;
+
+			const next = deriveNextServiceDate(eq);
+
+			const missingSerial = !eq.serialNumber?.trim();
+			const missingLast = !eq.lastServiceDate?.trim();
+			const missingOwnerOrLocation =
+				!(eq.owner ?? '').trim() || !(eq.location ?? '').trim();
+
+			if (missingSerial) {
+				reasons.push('Missing serial');
+				score += 30;
+			}
+
+			if (missingLast) {
+				reasons.push('Missing last service');
+				score += 25;
+			}
+
+			if (missingOwnerOrLocation) {
+				reasons.push('Missing owner/location');
+				score += 10;
+			}
+
+			if (next) {
+				if (isBefore(next, today)) {
+					reasons.push('Overdue maintenance');
+					score += 50;
+				} else if (isWithinInterval(next, { start: today, end: in30 })) {
+					reasons.push('Maintenance due (30d)');
+					score += 20;
+				}
+			}
+
+			if (reasons.length > 0) {
+				attentionItems.push({
+					id: eq.id,
+					name: eq.name,
+					serialNumber: eq.serialNumber,
+					reasons,
+					score,
+					nextService: next
+				});
+			}
+		}
+
+		attentionItems.sort((a, b) => b.score - a.score);
+
 		return {
 			total,
 			active,
 			inactive,
 			maintenance,
+
 			overdue,
 			due7,
 			due30,
+
 			quality,
-			dueSoonTop: dueSoonList.slice(0, 6)
+
+			// quality breakdown
+			withSerial,
+			withLastService,
+			withNextService,
+			withOwner,
+			withLocation,
+
+			dueSoonTop: dueSoonList.slice(0, 6),
+
+			needsAttentionTop: attentionItems.slice(0, 8)
 		};
-	}, [equipments, today, in7, in30]);
+	}, [activeEquipments, today, in7, in30]);
 
 	const statusChartData = useMemo(
 		() => [
@@ -231,7 +345,7 @@ export default function DashboardPage() {
 								title='Total Assets'
 								value={metrics.total}
 								icon={<Package className='h-4 w-4' />}
-								footer='Tracked in the system'
+								footer='Active (excludes archived)'
 							/>
 							<KpiCard
 								title='In Service'
@@ -267,13 +381,13 @@ export default function DashboardPage() {
 								title='Data Quality'
 								value={`${metrics.quality}%`}
 								icon={<CheckCircle2 className='h-4 w-4' />}
-								footer='Serial + last service completeness'
+								footer='Serial + last + next service'
 							/>
 						</>
 					)}
 				</div>
 
-				{/* Alerts + Chart */}
+				{/* Priorities + Chart + Data Quality Breakdown */}
 				<div className='grid gap-4 lg:grid-cols-3'>
 					<Card className='lg:col-span-2'>
 						<CardHeader>
@@ -299,9 +413,11 @@ export default function DashboardPage() {
 										href='/equipments'
 									/>
 									<PriorityRow
-										label='Service policy: default every 180 days'
-										tone='ok'
-										href='/analytics'
+										label={`${metrics.needsAttentionTop.length} assets need attention (data/maintenance)`}
+										tone={
+											metrics.needsAttentionTop.length > 0 ? 'warning' : 'ok'
+										}
+										href='/equipments'
 									/>
 								</>
 							)}
@@ -348,6 +464,165 @@ export default function DashboardPage() {
 								<p className='mt-3 text-xs text-muted-foreground'>
 									Add your first asset to populate analytics.
 								</p>
+							)}
+						</CardContent>
+					</Card>
+				</div>
+
+				{/* Data Quality Breakdown + Needs Attention */}
+				<div className='grid gap-4 lg:grid-cols-2'>
+					<Card>
+						<CardHeader className='flex flex-row items-center justify-between'>
+							<CardTitle>Data Quality</CardTitle>
+							<Button
+								variant='outline'
+								size='sm'
+								asChild
+							>
+								<Link href='/equipments'>Open assets</Link>
+							</Button>
+						</CardHeader>
+
+						<CardContent className='space-y-3'>
+							{isLoading ? (
+								<div className='space-y-2'>
+									<Skeleton className='h-5 w-2/3' />
+									<Skeleton className='h-5 w-1/2' />
+									<Skeleton className='h-5 w-3/4' />
+								</div>
+							) : metrics.total === 0 ? (
+								<p className='text-sm text-muted-foreground'>
+									Add assets to compute data quality coverage.
+								</p>
+							) : (
+								<div className='space-y-2'>
+									<QualityRow
+										label='Serial number coverage'
+										value={`${metrics.withSerial}/${metrics.total}`}
+										tone={
+											metrics.withSerial === metrics.total ? 'ok' : 'warning'
+										}
+									/>
+									<QualityRow
+										label='Last service coverage'
+										value={`${metrics.withLastService}/${metrics.total}`}
+										tone={
+											metrics.withLastService === metrics.total
+												? 'ok'
+												: 'warning'
+										}
+									/>
+									<QualityRow
+										label='Next service coverage (stored/derived)'
+										value={`${metrics.withNextService}/${metrics.total}`}
+										tone={
+											metrics.withNextService === metrics.total
+												? 'ok'
+												: 'warning'
+										}
+									/>
+									<QualityRow
+										label='Owner coverage'
+										value={`${metrics.withOwner}/${metrics.total}`}
+										tone={
+											metrics.withOwner === metrics.total ? 'ok' : 'warning'
+										}
+									/>
+									<QualityRow
+										label='Location coverage'
+										value={`${metrics.withLocation}/${metrics.total}`}
+										tone={
+											metrics.withLocation === metrics.total ? 'ok' : 'warning'
+										}
+									/>
+								</div>
+							)}
+						</CardContent>
+					</Card>
+
+					<Card>
+						<CardHeader className='flex flex-row items-center justify-between'>
+							<CardTitle>Needs Attention</CardTitle>
+							<Button
+								variant='outline'
+								size='sm'
+								asChild
+							>
+								<Link href='/equipments'>View all</Link>
+							</Button>
+						</CardHeader>
+
+						<CardContent>
+							{isLoading ? (
+								<div className='space-y-2'>
+									{Array.from({ length: 6 }).map((_, i) => (
+										<Skeleton
+											key={i}
+											className='h-10 w-full'
+										/>
+									))}
+								</div>
+							) : metrics.needsAttentionTop.length === 0 ? (
+								<p className='text-sm text-muted-foreground'>
+									No issues detected. Data and maintenance look healthy.
+								</p>
+							) : (
+								<div className='space-y-2'>
+									{metrics.needsAttentionTop.map((item) => (
+										<div
+											key={item.id}
+											className='flex items-start justify-between gap-3 rounded-md border px-3 py-2'
+										>
+											<div className='min-w-0'>
+												<div className='truncate text-sm font-medium'>
+													{item.name}
+												</div>
+												<div className='truncate text-xs text-muted-foreground'>
+													Serial: {item.serialNumber?.trim() || '—'}
+												</div>
+
+												<div className='mt-2 flex flex-wrap gap-1'>
+													{item.reasons.slice(0, 3).map((r) => (
+														<Badge
+															key={r}
+															variant={
+																r.includes('Overdue')
+																	? 'destructive'
+																	: 'secondary'
+															}
+														>
+															{r}
+														</Badge>
+													))}
+												</div>
+											</div>
+
+											<div className='flex flex-col items-end gap-2 shrink-0'>
+												{item.nextService ? (
+													<Badge
+														variant={
+															isBefore(item.nextService, today)
+																? 'destructive'
+																: 'secondary'
+														}
+													>
+														{item.nextService.toISOString().slice(0, 10)}
+													</Badge>
+												) : (
+													<Badge variant='outline'>—</Badge>
+												)}
+
+												<Button
+													size='sm'
+													variant='outline'
+													asChild
+												>
+													<Link href={`/equipments/${item.id}`}>Review</Link>
+												</Button>
+											</div>
+										</div>
+									))}
+								</div>
 							)}
 						</CardContent>
 					</Card>
@@ -414,11 +689,7 @@ export default function DashboardPage() {
 														variant='outline'
 														asChild
 													>
-														<Link
-															href={`/equipments/action?action=edit&id=${eq.id}`}
-														>
-															Review
-														</Link>
+														<Link href={`/equipments/${eq.id}`}>Review</Link>
 													</Button>
 												</div>
 											</div>
@@ -451,11 +722,25 @@ export default function DashboardPage() {
 									))}
 								</div>
 							) : (
-								<RecentActivity equipments={equipments} />
+								<RecentActivity equipments={activeEquipments} />
 							)}
 						</CardContent>
 					</Card>
 				</div>
+
+				{/* Small enterprise note */}
+				{!isLoading && equipments.some((e) => isArchivedAsset(e)) && (
+					<div className='rounded-md border bg-muted/30 p-4 flex items-start gap-3'>
+						<ShieldAlert className='h-4 w-4 mt-0.5 text-muted-foreground' />
+						<div>
+							<p className='text-sm font-medium'>Archived assets excluded</p>
+							<p className='text-xs text-muted-foreground mt-1'>
+								Dashboard KPIs are calculated from active assets only
+								(enterprise default).
+							</p>
+						</div>
+					</div>
+				)}
 			</div>
 		</section>
 	);
@@ -486,7 +771,6 @@ function KpiCard({
 				<div className='text-2xl font-semibold'>{value}</div>
 			</CardHeader>
 
-			{/* FIX: mobile quebra sem destruir layout */}
 			<CardContent className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
 				<p className='text-xs text-muted-foreground truncate'>{footer}</p>
 				{badge ? (
@@ -515,8 +799,8 @@ function PriorityRow({
 		tone === 'danger'
 			? 'destructive'
 			: tone === 'warning'
-			? 'secondary'
-			: 'outline';
+				? 'secondary'
+				: 'outline';
 
 	const pill =
 		tone === 'danger' ? 'High' : tone === 'warning' ? 'Medium' : 'Low';
@@ -534,6 +818,28 @@ function PriorityRow({
 					<Link href={href}>View</Link>
 				</Button>
 			</div>
+		</div>
+	);
+}
+
+function QualityRow({
+	label,
+	value,
+	tone
+}: {
+	label: string;
+	value: string;
+	tone: 'ok' | 'warning';
+}) {
+	return (
+		<div className='flex items-center justify-between gap-3 rounded-md border px-3 py-2'>
+			<div className='min-w-0'>
+				<p className='text-sm font-medium truncate'>{label}</p>
+				<p className='text-xs text-muted-foreground'>
+					Enterprise metric: data completeness
+				</p>
+			</div>
+			<Badge variant={tone === 'ok' ? 'secondary' : 'outline'}>{value}</Badge>
 		</div>
 	);
 }
@@ -573,9 +879,7 @@ function RecentActivity({ equipments }: { equipments: Equipment[] }) {
 						variant='outline'
 						asChild
 					>
-						<Link href={`/equipments/action?action=edit&id=${eq.id}`}>
-							Open
-						</Link>
+						<Link href={`/equipments/${eq.id}`}>Open</Link>
 					</Button>
 				</div>
 			))}
