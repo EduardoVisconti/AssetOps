@@ -4,10 +4,9 @@ import { useMemo, useState } from 'react';
 import { ColumnDef, ColumnFiltersState } from '@tanstack/react-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { MoreHorizontal, Package } from 'lucide-react';
+import { MoreHorizontal, Package, Archive, ArchiveRestore } from 'lucide-react';
 import {
 	archiveEquipment,
-	deleteEquipment,
 	getEquipmentsList,
 	unarchiveEquipment
 } from '@/data-access/equipments';
@@ -29,24 +28,12 @@ import {
 	DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import {
-	AlertDialog,
-	AlertDialogContent,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogCancel,
-	AlertDialogAction
-} from '@/components/ui/alert-dialog';
-import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue
 } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 
 function StatusBadge({ status }: { status: Equipment['status'] }) {
 	const map = {
@@ -71,7 +58,7 @@ function ArchivedBadge() {
 			variant='outline'
 			className='bg-muted text-muted-foreground'
 		>
-			archived
+			Archived
 		</Badge>
 	);
 }
@@ -83,21 +70,12 @@ export default function EquipmentsTableSection() {
 	const { isAdmin, isLoading: roleLoading } = useUserRole();
 
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-	const [deletingId, setDeletingId] = useState<string | null>(null);
-	const [equipmentToDelete, setEquipmentToDelete] = useState<Equipment | null>(
-		null
-	);
-
 	const [includeArchived, setIncludeArchived] = useState(false);
-	const [archivingId, setArchivingId] = useState<string | null>(null);
-	const [unarchivingId, setUnarchivingId] = useState<string | null>(null);
-
-	const canWrite = !roleLoading && isAdmin && !authLoading && !!user;
 
 	/* ---------------- DATA ---------------- */
 
 	const {
-		data: rawData = [],
+		data = [],
 		isLoading,
 		isFetching
 	} = useQuery<Equipment[]>({
@@ -105,35 +83,23 @@ export default function EquipmentsTableSection() {
 		queryFn: getEquipmentsList
 	});
 
-	const data = useMemo(() => {
-		if (includeArchived) return rawData;
-		// hide archived by default
-		return rawData.filter((e) => !e.archivedAt);
-	}, [rawData, includeArchived]);
+	const filteredData = useMemo(() => {
+		if (includeArchived) return data;
+		return data.filter((e) => !e.archivedAt);
+	}, [data, includeArchived]);
+
+	/* ---------------- PERMISSIONS ---------------- */
+
+	const canWrite = !roleLoading && isAdmin;
+	const isAuthBlocked = authLoading || !user;
 
 	/* ---------------- MUTATIONS ---------------- */
 
-	const deleteMutation = useMutation({
-		mutationFn: (id: string) => deleteEquipment(id),
-		onMutate: (id) => setDeletingId(id),
-		onSettled: () => setDeletingId(null),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ['equipments'] });
-			toast.success('Asset deleted');
-		},
-		onError: () => toast.error('Failed to delete asset')
-	});
-
 	const archiveMutation = useMutation({
-		mutationFn: async (equipment: Equipment) => {
+		mutationFn: async (equipmentId: string) => {
 			if (!user) throw new Error('Not authenticated');
-			await archiveEquipment(equipment.id, {
-				uid: user.uid,
-				email: user.email
-			});
+			await archiveEquipment(equipmentId, { uid: user.uid, email: user.email });
 		},
-		onMutate: (equipment) => setArchivingId(equipment.id),
-		onSettled: () => setArchivingId(null),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['equipments'] });
 			toast.success('Asset archived');
@@ -141,22 +107,22 @@ export default function EquipmentsTableSection() {
 		onError: () => toast.error('Failed to archive asset')
 	});
 
-	const unarchiveMutation = useMutation({
-		mutationFn: async (equipment: Equipment) => {
+	const restoreMutation = useMutation({
+		mutationFn: async (equipmentId: string) => {
 			if (!user) throw new Error('Not authenticated');
-			await unarchiveEquipment(equipment.id, {
+			await unarchiveEquipment(equipmentId, {
 				uid: user.uid,
 				email: user.email
 			});
 		},
-		onMutate: (equipment) => setUnarchivingId(equipment.id),
-		onSettled: () => setUnarchivingId(null),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['equipments'] });
 			toast.success('Asset restored');
 		},
 		onError: () => toast.error('Failed to restore asset')
 	});
+
+	const isMutating = archiveMutation.isPending || restoreMutation.isPending;
 
 	/* ---------------- COLUMNS ---------------- */
 
@@ -192,13 +158,26 @@ export default function EquipmentsTableSection() {
 			id: 'actions',
 			cell: ({ row }) => {
 				const equipment = row.original;
-				const isDeleting = deletingId === equipment.id;
-				const isArchiving = archivingId === equipment.id;
-				const isUnarchiving = unarchivingId === equipment.id;
 				const isArchived = Boolean(equipment.archivedAt);
 
 				const handleEdit = () => {
 					router.push(`/equipments/action?action=edit&id=${equipment.id}`);
+				};
+
+				const handleArchive = () => {
+					if (!canWrite) {
+						toast.error('Read-only access. Admin role required.');
+						return;
+					}
+					archiveMutation.mutate(equipment.id);
+				};
+
+				const handleRestore = () => {
+					if (!canWrite) {
+						toast.error('Read-only access. Admin role required.');
+						return;
+					}
+					restoreMutation.mutate(equipment.id);
 				};
 
 				return (
@@ -221,7 +200,7 @@ export default function EquipmentsTableSection() {
 							</DropdownMenuItem>
 
 							<DropdownMenuItem
-								disabled={!canWrite || isArchived || isDeleting || isArchiving}
+								disabled={!canWrite || isMutating || isArchived}
 								onClick={handleEdit}
 							>
 								Edit
@@ -231,29 +210,21 @@ export default function EquipmentsTableSection() {
 
 							{isArchived ? (
 								<DropdownMenuItem
-									disabled={!canWrite || isUnarchiving}
-									onClick={() => unarchiveMutation.mutate(equipment)}
+									disabled={!canWrite || isMutating || isAuthBlocked}
+									onClick={handleRestore}
 								>
-									{isUnarchiving ? 'Restoring…' : 'Unarchive'}
+									<ArchiveRestore className='h-4 w-4 mr-2' />
+									Restore
 								</DropdownMenuItem>
 							) : (
 								<DropdownMenuItem
-									disabled={!canWrite || isArchiving}
-									onClick={() => archiveMutation.mutate(equipment)}
+									disabled={!canWrite || isMutating || isAuthBlocked}
+									onClick={handleArchive}
 								>
-									{isArchiving ? 'Archiving…' : 'Archive'}
+									<Archive className='h-4 w-4 mr-2' />
+									Archive
 								</DropdownMenuItem>
 							)}
-
-							<DropdownMenuItem
-								className='text-destructive'
-								disabled={
-									!canWrite || isDeleting || isArchiving || isUnarchiving
-								}
-								onClick={() => setEquipmentToDelete(equipment)}
-							>
-								Delete
-							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
 				);
@@ -287,7 +258,7 @@ export default function EquipmentsTableSection() {
 	return (
 		<div className='space-y-4'>
 			<div className='flex flex-wrap gap-4 items-center justify-between'>
-				<div className='flex flex-wrap gap-3 items-center'>
+				<div className='flex gap-2 flex-wrap'>
 					<Input
 						placeholder='Search assets...'
 						value={
@@ -320,19 +291,12 @@ export default function EquipmentsTableSection() {
 						</SelectContent>
 					</Select>
 
-					<div className='flex items-center gap-2 rounded-md border px-3 py-2'>
-						<Switch
-							id='include-archived'
-							checked={includeArchived}
-							onCheckedChange={setIncludeArchived}
-						/>
-						<Label
-							htmlFor='include-archived'
-							className='text-xs text-muted-foreground'
-						>
-							Include archived
-						</Label>
-					</div>
+					<Button
+						variant='outline'
+						onClick={() => setIncludeArchived((v) => !v)}
+					>
+						{includeArchived ? 'Hide archived' : 'Include archived'}
+					</Button>
 				</div>
 
 				<Button
@@ -347,16 +311,20 @@ export default function EquipmentsTableSection() {
 				<p className='text-xs text-muted-foreground'>Refreshing...</p>
 			)}
 
-			{data.length === 0 ? (
+			{filteredData.length === 0 ? (
 				<div className='flex flex-col items-center justify-center rounded-lg border border-dashed p-10 text-center'>
 					<div className='flex h-12 w-12 items-center justify-center rounded-full bg-muted'>
 						<Package className='h-6 w-6 text-muted-foreground' />
 					</div>
-					<h3 className='mt-4 text-lg font-semibold'>No assets found</h3>
+
+					<h3 className='mt-4 text-lg font-semibold'>
+						{includeArchived ? 'No assets found' : 'No active assets found'}
+					</h3>
+
 					<p className='mt-2 text-sm text-muted-foreground'>
 						{includeArchived
-							? 'No assets match your current filters.'
-							: 'Add your first asset to start managing operations.'}
+							? 'Try adjusting filters or add a new asset.'
+							: 'Enable “Include archived” to view archived assets, or add a new asset.'}
 					</p>
 
 					<Button
@@ -376,41 +344,11 @@ export default function EquipmentsTableSection() {
 			) : (
 				<DataTable
 					columns={columns}
-					data={data}
+					data={filteredData}
 					columnFilters={columnFilters}
 					onColumnFiltersChange={setColumnFilters}
 				/>
 			)}
-
-			<AlertDialog
-				open={!!equipmentToDelete}
-				onOpenChange={(open) => !open && setEquipmentToDelete(null)}
-			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Delete asset</AlertDialogTitle>
-						<AlertDialogDescription>
-							This will permanently delete{' '}
-							<strong>{equipmentToDelete?.name}</strong>.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							className='bg-destructive'
-							disabled={!canWrite}
-							onClick={() => {
-								if (equipmentToDelete) {
-									deleteMutation.mutate(equipmentToDelete.id);
-									setEquipmentToDelete(null);
-								}
-							}}
-						>
-							Delete
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
 		</div>
 	);
 }
