@@ -1,17 +1,23 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { ColumnDef, ColumnFiltersState } from '@tanstack/react-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { MoreHorizontal, Package, Archive, ArchiveRestore } from 'lucide-react';
+import {
+	MoreHorizontal,
+	Package,
+	Archive,
+	ArchiveRestore,
+	Bookmark
+} from 'lucide-react';
 import {
 	archiveEquipment,
 	getEquipmentsList,
 	unarchiveEquipment,
 	type EquipmentsSort
 } from '@/data-access/equipments';
-import { Equipment } from '@/types/equipment';
+import type { Equipment } from '@/types/equipment';
 import { toast } from 'sonner';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useAuth } from '@/context/auth-context';
@@ -35,6 +41,13 @@ import {
 	SelectTrigger,
 	SelectValue
 } from '@/components/ui/select';
+
+import { useLocalStorage } from '@/hooks/use-local-storage';
+import type {
+	EquipmentsSavedView,
+	EquipmentsSavedViewKey,
+	StatusFilterValue
+} from '@/types/views';
 
 function StatusBadge({ status }: { status: Equipment['status'] }) {
 	const map: Record<Equipment['status'], string> = {
@@ -72,6 +85,50 @@ const SORT_OPTIONS: Array<{ value: EquipmentsSort; label: string }> = [
 	{ value: 'next_service_asc', label: 'Next service (soonest)' }
 ];
 
+// Presets enterprise (Saved Views)
+const DEFAULT_VIEWS: EquipmentsSavedView[] = [
+	{
+		key: 'operational',
+		label: 'Operational',
+		includeArchived: false,
+		sort: 'status_ops',
+		status: 'all',
+		search: ''
+	},
+	{
+		key: 'maintenance_focus',
+		label: 'Maintenance focus',
+		includeArchived: false,
+		sort: 'next_service_asc',
+		status: 'maintenance',
+		search: ''
+	},
+	{
+		key: 'archived',
+		label: 'Archived',
+		includeArchived: true,
+		sort: 'updated_desc',
+		status: 'all',
+		search: ''
+	}
+];
+
+function getViewByKey(key: EquipmentsSavedViewKey): EquipmentsSavedView {
+	return DEFAULT_VIEWS.find((v) => v.key === key) ?? DEFAULT_VIEWS[0];
+}
+
+/**
+ * Helper para aplicar filtros de "name" e "status" no formato do TanStack Table
+ */
+function buildColumnFilters(search: string, status: StatusFilterValue) {
+	const next: ColumnFiltersState = [];
+
+	if (search.trim()) next.push({ id: 'name', value: search });
+	if (status !== 'all') next.push({ id: 'status', value: status });
+
+	return next;
+}
+
 export default function EquipmentsTableSection() {
 	const router = useRouter();
 	const queryClient = useQueryClient();
@@ -79,11 +136,55 @@ export default function EquipmentsTableSection() {
 	const { user, loading: authLoading } = useAuth();
 	const { isAdmin, isLoading: roleLoading } = useUserRole();
 
-	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-	const [includeArchived, setIncludeArchived] = useState(false);
+	// Qual preset o user selecionou (persistente)
+	const [savedViewKey, setSavedViewKey] =
+		useLocalStorage<EquipmentsSavedViewKey>(
+			'assetops.equipments.savedViewKey',
+			'operational'
+		);
 
-	// Enterprise default: last updated
-	const [sort, setSort] = useState<EquipmentsSort>('updated_desc');
+	/**
+	 * Estado real da tela (persistente).
+	 * Isso resolve o seu “F5 volta padrão”.
+	 */
+	const [customState, setCustomState] = useLocalStorage(
+		'assetops.equipments.customState',
+		// default inicial (se não existir no storage, começa pelo preset atual)
+		{
+			sort: 'status_ops' as EquipmentsSort,
+			includeArchived: false,
+			search: '',
+			status: 'all' as StatusFilterValue
+		}
+	);
+
+	// Derivados do customState (a UI sempre reflete isso)
+	const sort = customState.sort as EquipmentsSort;
+	const includeArchived = Boolean(customState.includeArchived);
+	const search = (customState.search ?? '') as string;
+	const status = (customState.status ?? 'all') as StatusFilterValue;
+
+	// Column filters do TanStack Table, derivado (não é mais “fonte”)
+	const columnFilters = useMemo(
+		() => buildColumnFilters(search, status),
+		[search, status]
+	);
+
+	/**
+	 * Quando o user troca o Saved View, aplicamos o preset no customState
+	 * (e isso persiste, enterprise total).
+	 */
+	useEffect(() => {
+		const view = getViewByKey(savedViewKey);
+
+		setCustomState({
+			sort: view.sort,
+			includeArchived: view.includeArchived,
+			search: view.search ?? '',
+			status: view.status ?? 'all'
+		});
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [savedViewKey]);
 
 	/* ---------------- DATA ---------------- */
 
@@ -92,16 +193,23 @@ export default function EquipmentsTableSection() {
 		isLoading,
 		isFetching
 	} = useQuery<Equipment[]>({
+		// queryKey inclui os parâmetros enterprise
 		queryKey: ['equipments', { includeArchived, sort }],
 		queryFn: () => getEquipmentsList({ includeArchived, sort })
 	});
 
-	// Observação: como o data-access já filtra archived (quando includeArchived=false),
-	// aqui não precisamos filtrar de novo. Ainda assim, mantemos um fallback defensivo.
 	const filteredData = useMemo(() => {
+		// View Archived = somente arquivados
+		if (savedViewKey === 'archived') {
+			return data.filter((e) => Boolean(e.archivedAt));
+		}
+
+		// Include archived = todos
 		if (includeArchived) return data;
+
+		// Default = sem arquivados
 		return data.filter((e) => !Boolean(e.archivedAt));
-	}, [data, includeArchived]);
+	}, [data, includeArchived, savedViewKey]);
 
 	/* ---------------- PERMISSIONS ---------------- */
 
@@ -273,27 +381,51 @@ export default function EquipmentsTableSection() {
 	return (
 		<div className='space-y-4'>
 			<div className='flex flex-wrap gap-4 items-center justify-between'>
-				{/* Controls (enterprise): Search / Status / Sort by / Include archived */}
 				<div className='flex gap-2 flex-wrap items-center'>
+					{/* Saved Views */}
+					<Select
+						value={savedViewKey}
+						onValueChange={(v) => setSavedViewKey(v as EquipmentsSavedViewKey)}
+					>
+						<SelectTrigger className='w-[220px]'>
+							<SelectValue placeholder='Saved view' />
+						</SelectTrigger>
+						<SelectContent>
+							{DEFAULT_VIEWS.map((v) => (
+								<SelectItem
+									key={v.key}
+									value={v.key}
+								>
+									<div className='flex items-center gap-2'>
+										<Bookmark className='h-4 w-4' />
+										{v.label}
+									</div>
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+
+					{/* Search */}
 					<Input
 						placeholder='Search assets...'
-						value={
-							(columnFilters.find((f) => f.id === 'name')?.value as string) ??
-							''
-						}
+						value={search}
 						onChange={(e) =>
-							setColumnFilters([{ id: 'name', value: e.target.value }])
+							setCustomState((prev: any) => ({
+								...prev,
+								search: e.target.value
+							}))
 						}
 						className='max-w-sm'
 					/>
 
+					{/* Status */}
 					<Select
+						value={status}
 						onValueChange={(value) =>
-							setColumnFilters((prev) => {
-								const next = prev.filter((f) => f.id !== 'status');
-								if (value === 'all') return next;
-								return [...next, { id: 'status', value }];
-							})
+							setCustomState((prev: any) => ({
+								...prev,
+								status: value as StatusFilterValue
+							}))
 						}
 					>
 						<SelectTrigger className='w-[180px]'>
@@ -307,9 +439,15 @@ export default function EquipmentsTableSection() {
 						</SelectContent>
 					</Select>
 
+					{/* Sort */}
 					<Select
 						value={sort}
-						onValueChange={(v) => setSort(v as EquipmentsSort)}
+						onValueChange={(v) =>
+							setCustomState((prev: any) => ({
+								...prev,
+								sort: v as EquipmentsSort
+							}))
+						}
 					>
 						<SelectTrigger className='w-[200px]'>
 							<SelectValue placeholder='Sort by' />
@@ -326,11 +464,25 @@ export default function EquipmentsTableSection() {
 						</SelectContent>
 					</Select>
 
+					{/* Include archived */}
 					<Button
 						variant='outline'
-						onClick={() => setIncludeArchived((v) => !v)}
+						onClick={() =>
+							setCustomState((prev: any) => ({
+								...prev,
+								includeArchived: !prev.includeArchived
+							}))
+						}
 					>
 						{includeArchived ? 'Hide archived' : 'Include archived'}
+					</Button>
+
+					{/* Reset */}
+					<Button
+						variant='ghost'
+						onClick={() => setSavedViewKey('operational')}
+					>
+						Reset
 					</Button>
 				</div>
 
@@ -381,7 +533,10 @@ export default function EquipmentsTableSection() {
 					columns={columns}
 					data={filteredData}
 					columnFilters={columnFilters}
-					onColumnFiltersChange={setColumnFilters}
+					onColumnFiltersChange={() => {
+						// aqui a gente mantém o TanStack só como “render”,
+						// porque o estado real está no customState.
+					}}
 				/>
 			)}
 		</div>
