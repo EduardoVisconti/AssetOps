@@ -1,7 +1,7 @@
 import { db } from '@/lib/firebase';
-import type { UserProfile, UserRole } from '@/types/user-profile';
+import type { UserProfile } from '@/types/user-profile';
 
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 
 export const getUserProfile = async (
 	uid: string
@@ -16,44 +16,11 @@ export const getUserProfile = async (
 };
 
 /**
- * v1: ensures the current user has a profile document.
- * - If missing, creates it with role='viewer'.
- * - If exists, does NOT overwrite role.
+ * Enterprise note:
+ * - Neste projeto, SOMENTE admin escreve em /users.
+ * - Portanto, NÃO criamos perfil automaticamente no client.
+ * - Usuário sem profile => cai como "viewer" no app e não consegue escrever nada.
+ *
+ * Provisionamento (criar /users/{uid}) deve ser feito por admin
+ * via Firebase Console ou script/Cloud Function.
  */
-export const ensureUserProfile = async (
-	uid: string,
-	email: string
-): Promise<void> => {
-	const ref = doc(db, 'users', uid);
-	const snap = await getDoc(ref);
-
-	if (snap.exists()) return;
-
-	const payload: Omit<UserProfile, 'uid'> = {
-		email,
-		role: 'viewer',
-		createdAt: serverTimestamp()
-	};
-
-	await setDoc(ref, payload, { merge: true });
-};
-
-/**
- * Optional helper for manual role promotion (use only as admin in console or scripts).
- * Not used by the app by default.
- */
-export const setUserRole = async (
-	uid: string,
-	email: string,
-	role: UserRole
-): Promise<void> => {
-	const ref = doc(db, 'users', uid);
-
-	const payload: Omit<UserProfile, 'uid'> = {
-		email,
-		role,
-		createdAt: serverTimestamp()
-	};
-
-	await setDoc(ref, payload, { merge: true });
-};
