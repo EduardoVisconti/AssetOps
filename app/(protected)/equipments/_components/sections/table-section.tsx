@@ -1,8 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ColumnDef, ColumnFiltersState } from '@tanstack/react-table';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { MoreHorizontal, Package, Archive, ArchiveRestore } from 'lucide-react';
 import {
@@ -10,7 +10,7 @@ import {
 	getEquipmentsList,
 	unarchiveEquipment
 } from '@/data-access/equipments';
-import { Equipment } from '@/types/equipment';
+import type { Equipment } from '@/types/equipment';
 import { toast } from 'sonner';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useAuth } from '@/context/auth-context';
@@ -34,6 +34,20 @@ import {
 	SelectTrigger,
 	SelectValue
 } from '@/components/ui/select';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle
+} from '@/components/ui/alert-dialog';
+
+function isArchived(equipment: Equipment) {
+	return Boolean((equipment as any)?.archivedAt);
+}
 
 function StatusBadge({ status }: { status: Equipment['status'] }) {
 	const map = {
@@ -63,6 +77,11 @@ function ArchivedBadge() {
 	);
 }
 
+type ConfirmAction =
+	| { type: 'archive'; equipment: Equipment }
+	| { type: 'restore'; equipment: Equipment }
+	| null;
+
 export default function EquipmentsTableSection() {
 	const router = useRouter();
 	const queryClient = useQueryClient();
@@ -71,6 +90,7 @@ export default function EquipmentsTableSection() {
 
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [includeArchived, setIncludeArchived] = useState(false);
+	const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
 
 	/* ---------------- DATA ---------------- */
 
@@ -85,7 +105,7 @@ export default function EquipmentsTableSection() {
 
 	const filteredData = useMemo(() => {
 		if (includeArchived) return data;
-		return data.filter((e) => !e.archivedAt);
+		return data.filter((e) => !isArchived(e));
 	}, [data, includeArchived]);
 
 	/* ---------------- PERMISSIONS ---------------- */
@@ -124,6 +144,27 @@ export default function EquipmentsTableSection() {
 
 	const isMutating = archiveMutation.isPending || restoreMutation.isPending;
 
+	/* ---------------- FILTER HELPERS ---------------- */
+
+	const nameFilterValue =
+		(columnFilters.find((f) => f.id === 'name')?.value as string) ?? '';
+
+	function setNameFilter(value: string) {
+		setColumnFilters((prev) => {
+			const rest = prev.filter((f) => f.id !== 'name');
+			if (!value.trim()) return rest;
+			return [...rest, { id: 'name', value }];
+		});
+	}
+
+	function setStatusFilter(value: string) {
+		setColumnFilters((prev) => {
+			const rest = prev.filter((f) => f.id !== 'status');
+			if (value === 'all') return rest;
+			return [...rest, { id: 'status', value }];
+		});
+	}
+
 	/* ---------------- COLUMNS ---------------- */
 
 	const columns: ColumnDef<Equipment>[] = [
@@ -132,12 +173,11 @@ export default function EquipmentsTableSection() {
 			header: 'Asset',
 			cell: ({ row }) => {
 				const equipment = row.original;
-				const isArchived = Boolean(equipment.archivedAt);
 
 				return (
 					<div className='flex items-center gap-2 min-w-0'>
 						<span className='truncate'>{equipment.name}</span>
-						{isArchived && <ArchivedBadge />}
+						{isArchived(equipment) && <ArchivedBadge />}
 					</div>
 				);
 			}
@@ -158,26 +198,10 @@ export default function EquipmentsTableSection() {
 			id: 'actions',
 			cell: ({ row }) => {
 				const equipment = row.original;
-				const isArchived = Boolean(equipment.archivedAt);
+				const archived = isArchived(equipment);
 
 				const handleEdit = () => {
 					router.push(`/equipments/action?action=edit&id=${equipment.id}`);
-				};
-
-				const handleArchive = () => {
-					if (!canWrite) {
-						toast.error('Read-only access. Admin role required.');
-						return;
-					}
-					archiveMutation.mutate(equipment.id);
-				};
-
-				const handleRestore = () => {
-					if (!canWrite) {
-						toast.error('Read-only access. Admin role required.');
-						return;
-					}
-					restoreMutation.mutate(equipment.id);
 				};
 
 				return (
@@ -200,7 +224,7 @@ export default function EquipmentsTableSection() {
 							</DropdownMenuItem>
 
 							<DropdownMenuItem
-								disabled={!canWrite || isMutating || isArchived}
+								disabled={!canWrite || isMutating || archived}
 								onClick={handleEdit}
 							>
 								Edit
@@ -208,10 +232,12 @@ export default function EquipmentsTableSection() {
 
 							<DropdownMenuSeparator />
 
-							{isArchived ? (
+							{archived ? (
 								<DropdownMenuItem
 									disabled={!canWrite || isMutating || isAuthBlocked}
-									onClick={handleRestore}
+									onClick={() =>
+										setConfirmAction({ type: 'restore', equipment })
+									}
 								>
 									<ArchiveRestore className='h-4 w-4 mr-2' />
 									Restore
@@ -219,7 +245,9 @@ export default function EquipmentsTableSection() {
 							) : (
 								<DropdownMenuItem
 									disabled={!canWrite || isMutating || isAuthBlocked}
-									onClick={handleArchive}
+									onClick={() =>
+										setConfirmAction({ type: 'archive', equipment })
+									}
 								>
 									<Archive className='h-4 w-4 mr-2' />
 									Archive
@@ -253,6 +281,18 @@ export default function EquipmentsTableSection() {
 		);
 	}
 
+	/* ---------------- CONFIRM ACTION ---------------- */
+
+	const confirmTitle =
+		confirmAction?.type === 'archive' ? 'Archive asset' : 'Restore asset';
+
+	const confirmDescription =
+		confirmAction?.type === 'archive'
+			? 'Archived assets become read-only and are excluded from operational KPIs by default.'
+			: 'This will restore the asset to active operations. You can edit it again after restoring.';
+
+	const confirmCta = confirmAction?.type === 'archive' ? 'Archive' : 'Restore';
+
 	/* ---------------- RENDER ---------------- */
 
 	return (
@@ -261,25 +301,12 @@ export default function EquipmentsTableSection() {
 				<div className='flex gap-2 flex-wrap'>
 					<Input
 						placeholder='Search assets...'
-						value={
-							(columnFilters.find((f) => f.id === 'name')?.value as string) ??
-							''
-						}
-						onChange={(e) =>
-							setColumnFilters([{ id: 'name', value: e.target.value }])
-						}
+						value={nameFilterValue}
+						onChange={(e) => setNameFilter(e.target.value)}
 						className='max-w-sm'
 					/>
 
-					<Select
-						onValueChange={(value) =>
-							setColumnFilters((prev) => {
-								const next = prev.filter((f) => f.id !== 'status');
-								if (value === 'all') return next;
-								return [...next, { id: 'status', value }];
-							})
-						}
-					>
+					<Select onValueChange={setStatusFilter}>
 						<SelectTrigger className='w-[160px]'>
 							<SelectValue placeholder='Status' />
 						</SelectTrigger>
@@ -349,6 +376,46 @@ export default function EquipmentsTableSection() {
 					onColumnFiltersChange={setColumnFilters}
 				/>
 			)}
+
+			<AlertDialog
+				open={Boolean(confirmAction)}
+				onOpenChange={(open) => !open && setConfirmAction(null)}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>{confirmTitle}</AlertDialogTitle>
+						<AlertDialogDescription>
+							<strong>{confirmAction?.equipment.name}</strong>
+							<br />
+							{confirmDescription}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={isMutating}>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							className={
+								confirmAction?.type === 'archive' ? 'bg-destructive' : ''
+							}
+							disabled={!canWrite || isMutating || isAuthBlocked}
+							onClick={() => {
+								if (!confirmAction) return;
+
+								const id = confirmAction.equipment.id;
+
+								if (confirmAction.type === 'archive') {
+									archiveMutation.mutate(id);
+								} else {
+									restoreMutation.mutate(id);
+								}
+
+								setConfirmAction(null);
+							}}
+						>
+							{isMutating ? 'Working…' : confirmCta}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }
