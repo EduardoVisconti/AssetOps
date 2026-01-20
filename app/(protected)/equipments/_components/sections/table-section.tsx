@@ -1,8 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ColumnDef, ColumnFiltersState } from '@tanstack/react-table';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { MoreHorizontal, Package, Archive, ArchiveRestore } from 'lucide-react';
 import {
@@ -11,7 +11,7 @@ import {
 	unarchiveEquipment,
 	type EquipmentsSort
 } from '@/data-access/equipments';
-import type { Equipment } from '@/types/equipment';
+import { Equipment } from '@/types/equipment';
 import { toast } from 'sonner';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useAuth } from '@/context/auth-context';
@@ -36,13 +36,7 @@ import {
 	SelectValue
 } from '@/components/ui/select';
 
-/* ---------------------------------------
-   UI helpers
----------------------------------------- */
-
 function StatusBadge({ status }: { status: Equipment['status'] }) {
-	// Comentário: essas classes funcionam bem em light mode.
-	// Se quiser 100% enterprise/dark-mode-friendly, a gente troca por variantes/sem cores hard-coded.
 	const map: Record<Equipment['status'], string> = {
 		active: 'bg-green-100 text-green-700',
 		maintenance: 'bg-yellow-100 text-yellow-800',
@@ -54,11 +48,7 @@ function StatusBadge({ status }: { status: Equipment['status'] }) {
 			variant='outline'
 			className={map[status]}
 		>
-			{status === 'active'
-				? 'in service'
-				: status === 'maintenance'
-					? 'maintenance'
-					: 'out of service'}
+			{status}
 		</Badge>
 	);
 }
@@ -74,9 +64,13 @@ function ArchivedBadge() {
 	);
 }
 
-/* ---------------------------------------
-   Main
----------------------------------------- */
+const SORT_OPTIONS: Array<{ value: EquipmentsSort; label: string }> = [
+	{ value: 'updated_desc', label: 'Last updated' },
+	{ value: 'created_desc', label: 'Created date' },
+	{ value: 'name_asc', label: 'Name (A–Z)' },
+	{ value: 'status_ops', label: 'Ops priority (status)' },
+	{ value: 'next_service_asc', label: 'Next service (soonest)' }
+];
 
 export default function EquipmentsTableSection() {
 	const router = useRouter();
@@ -88,39 +82,33 @@ export default function EquipmentsTableSection() {
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [includeArchived, setIncludeArchived] = useState(false);
 
-	// Enterprise: “Sort by” (o padrão mais comum é Last updated)
-	const [sortBy, setSortBy] = useState<EquipmentsSort>('updated_desc');
+	// Enterprise default: last updated
+	const [sort, setSort] = useState<EquipmentsSort>('updated_desc');
 
-	/* ---------------- Permissions ---------------- */
-
-	const canWrite = !roleLoading && isAdmin;
-	const isAuthBlocked = authLoading || !user;
-
-	/* ---------------- Data ----------------
-	   Nota enterprise:
-	   - buscamos sempre "tudo" (incluindo archived) para não perder docs antigos
-	     que talvez não tenham archivedAt.
-	   - o toggle "Include archived" filtra localmente.
-	---------------------------------------- */
+	/* ---------------- DATA ---------------- */
 
 	const {
 		data = [],
 		isLoading,
 		isFetching
 	} = useQuery<Equipment[]>({
-		queryKey: ['equipments', sortBy],
-		queryFn: () => getEquipmentsList({ includeArchived: true, sort: sortBy })
+		queryKey: ['equipments', { includeArchived, sort }],
+		queryFn: () => getEquipmentsList({ includeArchived, sort })
 	});
 
+	// Observação: como o data-access já filtra archived (quando includeArchived=false),
+	// aqui não precisamos filtrar de novo. Ainda assim, mantemos um fallback defensivo.
 	const filteredData = useMemo(() => {
 		if (includeArchived) return data;
-
-		// Comentário: "archivedAt" pode ser Timestamp/FieldValue/null/undefined dependendo do histórico.
-		// Aqui, qualquer valor truthy em archivedAt significa "archived".
-		return data.filter((e) => !(e as any)?.archivedAt);
+		return data.filter((e) => !Boolean(e.archivedAt));
 	}, [data, includeArchived]);
 
-	/* ---------------- Mutations ---------------- */
+	/* ---------------- PERMISSIONS ---------------- */
+
+	const canWrite = !roleLoading && isAdmin;
+	const isAuthBlocked = authLoading || !user;
+
+	/* ---------------- MUTATIONS ---------------- */
 
 	const archiveMutation = useMutation({
 		mutationFn: async (equipmentId: string) => {
@@ -151,7 +139,7 @@ export default function EquipmentsTableSection() {
 
 	const isMutating = archiveMutation.isPending || restoreMutation.isPending;
 
-	/* ---------------- Columns ---------------- */
+	/* ---------------- COLUMNS ---------------- */
 
 	const columns: ColumnDef<Equipment>[] = [
 		{
@@ -159,12 +147,12 @@ export default function EquipmentsTableSection() {
 			header: 'Asset',
 			cell: ({ row }) => {
 				const equipment = row.original;
-				const isArchived = Boolean((equipment as any)?.archivedAt);
+				const isArchived = Boolean(equipment.archivedAt);
 
 				return (
 					<div className='flex items-center gap-2 min-w-0'>
 						<span className='truncate'>{equipment.name}</span>
-						{isArchived ? <ArchivedBadge /> : null}
+						{isArchived && <ArchivedBadge />}
 					</div>
 				);
 			}
@@ -183,10 +171,9 @@ export default function EquipmentsTableSection() {
 		},
 		{
 			id: 'actions',
-			enableSorting: false,
 			cell: ({ row }) => {
 				const equipment = row.original;
-				const isArchived = Boolean((equipment as any)?.archivedAt);
+				const isArchived = Boolean(equipment.archivedAt);
 
 				const handleEdit = () => {
 					router.push(`/equipments/action?action=edit&id=${equipment.id}`);
@@ -260,7 +247,7 @@ export default function EquipmentsTableSection() {
 		}
 	];
 
-	/* ---------------- Skeleton ---------------- */
+	/* ---------------- SKELETON ---------------- */
 
 	if (isLoading) {
 		return (
@@ -281,13 +268,13 @@ export default function EquipmentsTableSection() {
 		);
 	}
 
-	/* ---------------- Render ---------------- */
+	/* ---------------- RENDER ---------------- */
 
 	return (
 		<div className='space-y-4'>
-			{/* Toolbar: Search / Status / Sort by / Include archived (enterprise padrão) */}
-			<div className='flex flex-wrap gap-3 items-center justify-between'>
-				<div className='flex flex-wrap items-center gap-2'>
+			<div className='flex flex-wrap gap-4 items-center justify-between'>
+				{/* Controls (enterprise): Search / Status / Sort by / Include archived */}
+				<div className='flex gap-2 flex-wrap items-center'>
 					<Input
 						placeholder='Search assets...'
 						value={
@@ -297,7 +284,7 @@ export default function EquipmentsTableSection() {
 						onChange={(e) =>
 							setColumnFilters([{ id: 'name', value: e.target.value }])
 						}
-						className='w-[260px] max-w-full'
+						className='max-w-sm'
 					/>
 
 					<Select
@@ -314,25 +301,28 @@ export default function EquipmentsTableSection() {
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value='all'>All statuses</SelectItem>
-							<SelectItem value='active'>In service</SelectItem>
+							<SelectItem value='active'>Active</SelectItem>
 							<SelectItem value='maintenance'>Maintenance</SelectItem>
-							<SelectItem value='inactive'>Out of service</SelectItem>
+							<SelectItem value='inactive'>Inactive</SelectItem>
 						</SelectContent>
 					</Select>
 
 					<Select
-						value={sortBy}
-						onValueChange={(v) => setSortBy(v as EquipmentsSort)}
+						value={sort}
+						onValueChange={(v) => setSort(v as EquipmentsSort)}
 					>
-						<SelectTrigger className='w-[190px]'>
+						<SelectTrigger className='w-[200px]'>
 							<SelectValue placeholder='Sort by' />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value='updated_desc'>Last updated</SelectItem>
-							<SelectItem value='created_desc'>Created date</SelectItem>
-							<SelectItem value='name_asc'>Name (A–Z)</SelectItem>
-							<SelectItem value='next_service_asc'>Next service due</SelectItem>
-							<SelectItem value='status_ops'>Ops priority</SelectItem>
+							{SORT_OPTIONS.map((o) => (
+								<SelectItem
+									key={o.value}
+									value={o.value}
+								>
+									{o.label}
+								</SelectItem>
+							))}
 						</SelectContent>
 					</Select>
 
@@ -352,9 +342,9 @@ export default function EquipmentsTableSection() {
 				</Button>
 			</div>
 
-			{isFetching ? (
+			{isFetching && (
 				<p className='text-xs text-muted-foreground'>Refreshing...</p>
-			) : null}
+			)}
 
 			{filteredData.length === 0 ? (
 				<div className='flex flex-col items-center justify-center rounded-lg border border-dashed p-10 text-center'>
@@ -380,11 +370,11 @@ export default function EquipmentsTableSection() {
 						Add asset
 					</Button>
 
-					{!canWrite ? (
+					{!canWrite && (
 						<p className='mt-3 text-xs text-muted-foreground'>
 							Viewer role: read-only access.
 						</p>
-					) : null}
+					)}
 				</div>
 			) : (
 				<DataTable
@@ -392,8 +382,6 @@ export default function EquipmentsTableSection() {
 					data={filteredData}
 					columnFilters={columnFilters}
 					onColumnFiltersChange={setColumnFilters}
-					persistKey='equipments_table'
-					defaultPageSize={20}
 				/>
 			)}
 		</div>

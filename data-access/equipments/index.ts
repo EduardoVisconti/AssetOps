@@ -14,38 +14,31 @@ import {
 	serverTimestamp,
 	query,
 	orderBy,
-	limit,
-	addDoc as addDocToCollection
+	limit
 } from 'firebase/firestore';
 
 const equipmentsCollection = collection(db, 'equipments');
 
 /* ---------------------------------------
-   Helpers (datas / ordenação / fallback)
+   Helpers
 ---------------------------------------- */
 
-/**
- * Calcula nextServiceDate (yyyy-MM-dd) baseado em lastServiceDate + intervalDays.
- */
-function computeNextServiceDate(lastServiceDate: string, intervalDays: number) {
+// lastServiceDate: "yyyy-MM-dd"
+function computeNextServiceDate(
+	lastServiceDate: string,
+	intervalDays: number
+): string {
 	const base = new Date(`${lastServiceDate}T00:00:00`);
 	base.setDate(base.getDate() + intervalDays);
 	return base.toISOString().slice(0, 10);
 }
 
-/**
- * Parse seguro para strings yyyy-MM-dd (ou parecidas).
- */
 function safeParseDate(value?: string): Date | null {
 	if (!value) return null;
 	const d = new Date(`${value}T00:00:00`);
 	return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/**
- * Converte Timestamp do Firestore (ou qualquer coisa parecida) para millis.
- * Se não existir, retorna 0.
- */
 function getDocTimestampMillis(value: any): number {
 	if (!value) return 0;
 	if (typeof value?.toMillis === 'function') return value.toMillis();
@@ -53,23 +46,20 @@ function getDocTimestampMillis(value: any): number {
 	return 0;
 }
 
-/**
- * Usa nextServiceDate se existir, senão deriva de lastServiceDate + interval.
- * Retorna millis para ajudar ordenação.
- */
 function getEquipmentNextServiceMillis(eq: Equipment): number {
 	const anyEq = eq as any;
 
-	// preferir nextServiceDate que veio do Firestore
+	// 1) se tiver nextServiceDate salvo, usa
 	const stored =
 		typeof anyEq?.nextServiceDate === 'string'
 			? anyEq.nextServiceDate
 			: undefined;
 
-	const next = safeParseDate(stored || eq.nextServiceDate);
+	const derived = stored || eq.nextServiceDate;
+	const next = safeParseDate(derived);
 	if (next) return next.getTime();
 
-	// fallback: lastServiceDate + interval (default 180)
+	// 2) fallback: lastServiceDate + interval
 	const last = safeParseDate(eq.lastServiceDate);
 	if (!last) return 0;
 
@@ -82,54 +72,15 @@ function getEquipmentNextServiceMillis(eq: Equipment): number {
 	return last.getTime();
 }
 
-/**
- * Ordenação enterprise para operações:
- * maintenance primeiro, depois inactive, depois active.
- */
 function statusPriority(status: Equipment['status']): number {
+	// visão de operações (enterprise): maintenance primeiro, depois inactive, depois active
 	if (status === 'maintenance') return 0;
 	if (status === 'inactive') return 1;
 	return 2;
 }
 
-/**
- * Fallback enterprise para "last updated":
- * 1) updatedAt
- * 2) createdAt
- * 3) purchaseDate (se existir)
- * 4) 0
- */
-function getEquipmentUpdatedMillis(eq: Equipment): number {
-	const anyEq = eq as any;
-
-	const updated = getDocTimestampMillis(anyEq.updatedAt);
-	if (updated) return updated;
-
-	const created = getDocTimestampMillis(anyEq.createdAt);
-	if (created) return created;
-
-	const purchase = safeParseDate(eq.purchaseDate)?.getTime() ?? 0;
-	return purchase;
-}
-
-/**
- * Fallback enterprise para "created date":
- * 1) createdAt
- * 2) purchaseDate
- * 3) 0
- */
-function getEquipmentCreatedMillis(eq: Equipment): number {
-	const anyEq = eq as any;
-
-	const created = getDocTimestampMillis(anyEq.createdAt);
-	if (created) return created;
-
-	const purchase = safeParseDate(eq.purchaseDate)?.getTime() ?? 0;
-	return purchase;
-}
-
 /* ---------------------------------------
-   Public API (list)
+   Public API
 ---------------------------------------- */
 
 export type EquipmentsSort =
@@ -146,73 +97,93 @@ export interface GetEquipmentsListOptions {
 }
 
 /**
- * Enterprise-grade list fetch (sem sumir docs antigos):
- * - NÃO usa orderBy do Firestore, porque docs legados podem não ter createdAt/updatedAt
- * - busca tudo e ordena localmente com fallback
- * - evita aquele efeito de "sumiu equipamento"
+ * Lista enterprise:
+ * - sort default: updated_desc
+ * - includeArchived: true/false
+ *
+ * Nota importante:
+ * - NÃO usamos where('archivedAt','==',null) porque isso NÃO inclui docs antigos
+ *   que não possuem o campo archivedAt (campo ausente != null no Firestore).
+ * - Para resiliência (e para seu volume atual), filtramos archived no client.
  */
 export const getEquipmentsList = async (
 	options: GetEquipmentsListOptions = {}
 ): Promise<Equipment[]> => {
-	const { includeArchived = true, sort = 'updated_desc', limit: max } = options;
+	const {
+		includeArchived = false,
+		sort = 'updated_desc',
+		limit: max
+	} = options;
 
-	const snapshot = await getDocs(equipmentsCollection);
+	// Base query com orderBy quando possível
+	const clauses: any[] = [];
 
-	let list = snapshot.docs.map((d) => ({
-		id: d.id,
-		...(d.data() as Omit<Equipment, 'id'>)
-	}));
-
-	// Filtra archived somente se o toggle estiver desligado
-	if (!includeArchived) {
-		list = list.filter((e) => !(e as any)?.archivedAt);
-	}
-
-	// Ordenação local (enterprise fallback)
+	// orderBy: tentamos usar Firestore pra performance e consistência
 	if (sort === 'updated_desc') {
-		list.sort(
-			(a, b) => getEquipmentUpdatedMillis(b) - getEquipmentUpdatedMillis(a)
-		);
+		clauses.push(orderBy('updatedAt', 'desc'));
+	} else if (sort === 'created_desc') {
+		clauses.push(orderBy('createdAt', 'desc'));
+	} else if (sort === 'name_asc') {
+		clauses.push(orderBy('name', 'asc'));
+	} else {
+		// status_ops e next_service_asc exigem sort custom -> base estável
+		clauses.push(orderBy('updatedAt', 'desc'));
 	}
 
-	if (sort === 'created_desc') {
-		list.sort(
-			(a, b) => getEquipmentCreatedMillis(b) - getEquipmentCreatedMillis(a)
-		);
+	if (typeof max === 'number') clauses.push(limit(max));
+
+	let list: Equipment[] = [];
+
+	try {
+		const q = query(equipmentsCollection, ...clauses);
+		const snapshot = await getDocs(q);
+
+		list = snapshot.docs.map((d) => ({
+			id: d.id,
+			...(d.data() as Omit<Equipment, 'id'>)
+		}));
+	} catch (err) {
+		// fallback resiliente (ex: índice faltando)
+		const snapshot = await getDocs(equipmentsCollection);
+		list = snapshot.docs.map((d) => ({
+			id: d.id,
+			...(d.data() as Omit<Equipment, 'id'>)
+		}));
 	}
 
-	if (sort === 'name_asc') {
-		list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+	// Filtra archived no client (resiliente: campo pode ser inexistente)
+	if (!includeArchived) {
+		list = list.filter((e) => !Boolean((e as any)?.archivedAt));
 	}
 
+	// Post-sort local para modos “enterprise”
 	if (sort === 'status_ops') {
 		list.sort((a, b) => {
 			const ap = statusPriority(a.status);
 			const bp = statusPriority(b.status);
 			if (ap !== bp) return ap - bp;
 
-			// desempate: próximo service mais cedo
+			// tie-breaker: next service (mais urgente primeiro)
 			const an = getEquipmentNextServiceMillis(a);
 			const bn = getEquipmentNextServiceMillis(b);
 			if (an !== bn) return an - bn;
 
 			return (a.name || '').localeCompare(b.name || '');
 		});
-	}
-
-	if (sort === 'next_service_asc') {
+	} else if (sort === 'next_service_asc') {
 		list.sort((a, b) => {
 			const an = getEquipmentNextServiceMillis(a);
 			const bn = getEquipmentNextServiceMillis(b);
 
-			// datas desconhecidas vão pro final
+			// datas desconhecidas por último
 			if (!an && bn) return 1;
 			if (an && !bn) return -1;
-
 			if (an !== bn) return an - bn;
 
-			// desempate: updated desc
-			return getEquipmentUpdatedMillis(b) - getEquipmentUpdatedMillis(a);
+			// tie-breaker: updatedAt desc
+			const au = getDocTimestampMillis((a as any).updatedAt);
+			const bu = getDocTimestampMillis((b as any).updatedAt);
+			return bu - au;
 		});
 	}
 
@@ -220,10 +191,6 @@ export const getEquipmentsList = async (
 
 	return list;
 };
-
-/* ---------------------------------------
-   Single equipment CRUD
----------------------------------------- */
 
 export const getEquipmentById = async (
 	id: string
@@ -251,19 +218,21 @@ export const createEquipment = async (
 			? computeNextServiceDate(data.lastServiceDate, interval)
 			: undefined);
 
-	// Importante: manter consistência para o futuro.
-	// Aqui eu não obrigo archivedAt: null porque seu type atual não permite null,
-	// então simplesmente deixo sem o campo (ou você muda o type depois e normaliza).
 	const payload: Omit<Equipment, 'id'> & Record<string, any> = {
 		...data,
-
-		serviceIntervalDays: interval,
-		nextServiceDate: next,
-
 		createdBy: actor.uid,
 		createdByEmail: actor.email ?? undefined,
 		updatedBy: actor.uid,
 		updatedByEmail: actor.email ?? undefined,
+
+		serviceIntervalDays: interval,
+		nextServiceDate: next,
+
+		// Mantém consistência: já cria com campos de archive presentes
+		// (Se você preferir, pode deixar “undefined” e limpar, mas eu prefiro explícito.)
+		archivedAt: null,
+		archivedBy: null,
+		archivedByEmail: null,
 
 		createdAt: serverTimestamp(),
 		updatedAt: serverTimestamp()
@@ -300,11 +269,10 @@ export const updateEquipment = async (
 
 	const payload: Omit<Equipment, 'id'> & Record<string, any> = {
 		...data,
-		serviceIntervalDays: interval,
-		nextServiceDate: next,
-
 		updatedBy: actor.uid,
 		updatedByEmail: actor.email ?? undefined,
+		serviceIntervalDays: interval,
+		nextServiceDate: next,
 		updatedAt: serverTimestamp()
 	};
 
@@ -337,7 +305,6 @@ export const archiveEquipment = async (
 		archivedAt: serverTimestamp(),
 		archivedBy: actor.uid,
 		archivedByEmail: actor.email ?? null,
-
 		updatedBy: actor.uid,
 		updatedByEmail: actor.email ?? null,
 		updatedAt: serverTimestamp()
@@ -359,24 +326,17 @@ export const unarchiveEquipment = async (
 ): Promise<void> => {
 	const ref = doc(db, 'equipments', id);
 
-	// Comentário importante:
-	// Para remover campos no Firestore de forma correta, o ideal é usar deleteField().
-	// Aqui, para manter simples e compatível, nós "zeramos" os campos.
-	// Se você quiser o modo enterprise perfeito, eu te mando a versão com deleteField().
+	// Observação: Firestore aceita null no payload (é um valor válido para o documento),
+	// mesmo que seu type do front não goste. Aqui a gente escreve null de propósito
+	// pra padronizar o schema.
 	const payload: Record<string, any> = {
-		archivedAt: undefined,
-		archivedBy: undefined,
-		archivedByEmail: undefined,
-
+		archivedAt: null,
+		archivedBy: null,
+		archivedByEmail: null,
 		updatedBy: actor.uid,
 		updatedByEmail: actor.email ?? null,
 		updatedAt: serverTimestamp()
 	};
-
-	// remove undefined do payload (pra não escrever lixo)
-	Object.keys(payload).forEach(
-		(k) => payload[k] === undefined && delete payload[k]
-	);
 
 	await updateDoc(ref, payload);
 
@@ -428,7 +388,7 @@ async function addEquipmentEvent(
 		(k) => payload[k] === undefined && delete payload[k]
 	);
 
-	await addDocToCollection(eventsCollection(equipmentId), payload);
+	await addDoc(eventsCollection(equipmentId), payload);
 }
 
 /* ---------------------------------------
@@ -473,7 +433,7 @@ export const addMaintenanceRecord = async (
 
 	await addDoc(maintenanceCollection(equipmentId), payload);
 
-	// Event para histórico/auditoria (enterprise)
+	// Event enterprise: loga manutenção na trilha
 	await addEquipmentEvent(equipmentId, {
 		type: 'maintenance.added',
 		actorId: actor.uid,
