@@ -36,9 +36,9 @@ function truncateId(value?: string, max = 14) {
 	return `${value.slice(0, 6)}…${value.slice(-4)}`;
 }
 
-function formatTimestamp(ts?: Timestamp | FieldValue): string {
-	// serverTimestamp() when read should arrive as Timestamp,
-	// but keep it defensive for enterprise-grade resiliency.
+function formatTimestamp(ts?: Timestamp | FieldValue | null): string {
+	// serverTimestamp() quando lido geralmente vira Timestamp,
+	// mas aqui aceitamos null/FieldValue/undefined para resiliência enterprise.
 	if (!ts) return '—';
 
 	const maybe = ts as unknown as { toDate?: () => Date };
@@ -161,15 +161,15 @@ export default function AssetDetailsPage({
 	const isArchived = Boolean(asset.archivedAt);
 
 	const createdBy =
-		asset.createdByEmail?.trim() ||
+		String(asset.createdByEmail ?? '').trim() ||
 		(asset.createdBy ? truncateId(asset.createdBy) : '—');
 
 	const updatedBy =
-		asset.updatedByEmail?.trim() ||
+		String(asset.updatedByEmail ?? '').trim() ||
 		(asset.updatedBy ? truncateId(asset.updatedBy) : '—');
 
 	const archivedBy =
-		asset.archivedByEmail?.trim() ||
+		String(asset.archivedByEmail ?? '').trim() ||
 		(asset.archivedBy ? truncateId(asset.archivedBy) : '—');
 
 	const createdAt = formatTimestamp(asset.createdAt);
@@ -294,7 +294,6 @@ export default function AssetDetailsPage({
 										value='Firestore'
 									/>
 
-									{/* Audit trail */}
 									<InfoCard
 										label='Created By'
 										value={createdBy}
@@ -312,7 +311,6 @@ export default function AssetDetailsPage({
 										value={updatedAt}
 									/>
 
-									{/* Archive metadata (only when archived) */}
 									{isArchived && (
 										<>
 											<InfoCard
