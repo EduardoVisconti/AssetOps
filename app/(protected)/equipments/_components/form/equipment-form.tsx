@@ -8,7 +8,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { addDays, format, isAfter, isBefore, parseISO } from 'date-fns';
 
-import type { Equipment } from '@/types/equipment';
+import type { Equipment, EquipmentInput } from '@/types/equipment';
 import { createEquipment, updateEquipment } from '@/data-access/equipments';
 
 import { useAuth } from '@/context/auth-context';
@@ -136,7 +136,7 @@ export default function EquipmentForm({
 
 	const createMutation = useMutation({
 		//Mutation só faz a escrita. Toast fica no onSuccess/onError
-		mutationFn: async (payload: Omit<Equipment, 'id'>) => {
+		mutationFn: async (payload: EquipmentInput) => {
 			if (!user) throw new Error('Not authenticated');
 			if (!isAdmin) throw new Error('Not authorized');
 			await createEquipment(payload, { uid: user.uid, email: user.email });
@@ -162,13 +162,7 @@ export default function EquipmentForm({
 	});
 
 	const updateMutation = useMutation({
-		mutationFn: async ({
-			id,
-			data
-		}: {
-			id: string;
-			data: Omit<Equipment, 'id'>;
-		}) => {
+		mutationFn: async ({ id, data }: { id: string; data: EquipmentInput }) => {
 			if (!user) throw new Error('Not authenticated');
 			if (!isAdmin) throw new Error('Not authorized');
 			await updateEquipment(id, data, { uid: user.uid, email: user.email });
@@ -207,7 +201,7 @@ export default function EquipmentForm({
 			next = format(computed, 'yyyy-MM-dd');
 		}
 
-		const payload: Omit<Equipment, 'id'> = {
+		const payload: EquipmentInput = {
 			name: parsed.name.trim(),
 			serialNumber: parsed.serialNumber.trim(),
 			status: parsed.status,

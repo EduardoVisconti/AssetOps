@@ -33,3 +33,18 @@ export interface Equipment {
 	archivedBy: string | null;
 	archivedByEmail: string | null;
 }
+
+export type EquipmentInput = {
+	name: string;
+	serialNumber: string;
+	status: EquipmentStatus;
+
+	purchaseDate: string;
+	lastServiceDate: string;
+	nextServiceDate?: string;
+
+	serviceIntervalDays?: number;
+
+	owner?: string;
+	location?: string;
+};

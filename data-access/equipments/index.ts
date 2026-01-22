@@ -1,5 +1,5 @@
 import { db } from '@/lib/firebase';
-import type { Equipment } from '@/types/equipment';
+import type { Equipment, EquipmentInput } from '@/types/equipment';
 import type { MaintenanceRecord } from '@/types/maintenance';
 import type { EquipmentEvent } from '@/types/events';
 
@@ -254,7 +254,7 @@ function addEquipmentEventInBatch(
 ---------------------------------------- */
 
 export const createEquipment = async (
-	data: Omit<Equipment, 'id'>,
+	data: EquipmentInput,
 	actor: { uid: string; email?: string | null }
 ): Promise<void> => {
 	const serial = data.serialNumber?.trim();
@@ -321,7 +321,7 @@ export const createEquipment = async (
 
 export const updateEquipment = async (
 	id: string,
-	data: Omit<Equipment, 'id'>,
+	data: EquipmentInput,
 	actor: { uid: string; email?: string | null }
 ): Promise<void> => {
 	const ref = doc(db, 'equipments', id);
