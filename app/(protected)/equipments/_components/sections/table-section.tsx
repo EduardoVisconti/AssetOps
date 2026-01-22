@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
-import { ColumnDef, ColumnFiltersState } from '@tanstack/react-table';
+import { useMemo, useEffect } from 'react';
+import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import {
@@ -9,14 +9,17 @@ import {
 	Package,
 	Archive,
 	ArchiveRestore,
-	Bookmark
+	Bookmark,
+	Clock
 } from 'lucide-react';
+
 import {
 	archiveEquipment,
 	getEquipmentsList,
 	unarchiveEquipment,
 	type EquipmentsSort
 } from '@/data-access/equipments';
+
 import type { Equipment } from '@/types/equipment';
 import { toast } from 'sonner';
 import { useUserRole } from '@/hooks/use-user-role';
@@ -27,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -34,6 +38,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
+
 import {
 	Select,
 	SelectContent,
@@ -46,8 +51,113 @@ import { useLocalStorage } from '@/hooks/use-local-storage';
 import type {
 	EquipmentsSavedView,
 	EquipmentsSavedViewKey,
-	StatusFilterValue
+	StatusFilterValue,
+	MaintenanceWindowValue
 } from '@/types/views';
+
+/* ---------------------------------------
+   Local helpers (UI-only)
+---------------------------------------- */
+
+function safeParseDate(value?: string): Date | null {
+	if (!value) return null;
+	const d = new Date(`${value}T00:00:00`);
+	return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function computeNextServiceDate(lastServiceDate: string, intervalDays: number) {
+	const base = new Date(`${lastServiceDate}T00:00:00`);
+	base.setDate(base.getDate() + intervalDays);
+	return base.toISOString().slice(0, 10);
+}
+
+/**
+ * Enterprise rule:
+ * - Prefer stored nextServiceDate
+ * - Else derive from lastServiceDate + serviceIntervalDays (default 180)
+ */
+function getNextServiceDate(eq: Equipment): string | null {
+	const anyEq = eq as any;
+
+	// 1) stored (pode estar em eq.nextServiceDate ou anyEq.nextServiceDate)
+	const stored =
+		typeof anyEq?.nextServiceDate === 'string'
+			? anyEq.nextServiceDate
+			: typeof (eq as any)?.nextServiceDate === 'string'
+				? (eq as any).nextServiceDate
+				: undefined;
+
+	if (stored?.trim()) return stored;
+
+	// 2) derived
+	const last = eq.lastServiceDate?.trim();
+	if (!last) return null;
+
+	const interval =
+		typeof anyEq?.serviceIntervalDays === 'number'
+			? anyEq.serviceIntervalDays
+			: typeof (eq as any)?.serviceIntervalDays === 'number'
+				? (eq as any).serviceIntervalDays
+				: 180;
+
+	return computeNextServiceDate(last, interval);
+}
+
+function getNextServiceTone(eq: Equipment) {
+	const nextStr = getNextServiceDate(eq);
+	const next = safeParseDate(nextStr ?? undefined);
+	if (!next) return { label: '—', variant: 'outline' as const };
+
+	const today = new Date();
+	const startOfToday = new Date(today.toDateString());
+
+	const in30 = new Date(startOfToday);
+	in30.setDate(in30.getDate() + 30);
+
+	if (next.getTime() < startOfToday.getTime()) {
+		return {
+			label: nextStr!,
+			variant: 'destructive' as const,
+			note: 'Overdue'
+		};
+	}
+
+	if (next.getTime() <= in30.getTime()) {
+		return { label: nextStr!, variant: 'secondary' as const, note: 'Due soon' };
+	}
+
+	return { label: nextStr!, variant: 'outline' as const };
+}
+
+function matchesMaintenanceWindow(
+	eq: Equipment,
+	window: MaintenanceWindowValue
+) {
+	if (window === 'all') return true;
+
+	const nextStr = getNextServiceDate(eq);
+	const next = safeParseDate(nextStr ?? undefined);
+	if (!next) return false;
+
+	const today = new Date();
+	const startOfToday = new Date(today.toDateString());
+
+	if (window === 'overdue') {
+		return next.getTime() < startOfToday.getTime();
+	}
+
+	// due_30
+	const in30 = new Date(startOfToday);
+	in30.setDate(in30.getDate() + 30);
+
+	return (
+		next.getTime() >= startOfToday.getTime() && next.getTime() <= in30.getTime()
+	);
+}
+
+/* ---------------------------------------
+   Badges
+---------------------------------------- */
 
 function StatusBadge({ status }: { status: Equipment['status'] }) {
 	const map: Record<Equipment['status'], string> = {
@@ -77,6 +187,10 @@ function ArchivedBadge() {
 	);
 }
 
+/* ---------------------------------------
+   Saved Views + Sort
+---------------------------------------- */
+
 const SORT_OPTIONS: Array<{ value: EquipmentsSort; label: string }> = [
 	{ value: 'updated_desc', label: 'Last updated' },
 	{ value: 'created_desc', label: 'Created date' },
@@ -85,7 +199,6 @@ const SORT_OPTIONS: Array<{ value: EquipmentsSort; label: string }> = [
 	{ value: 'next_service_asc', label: 'Next service (soonest)' }
 ];
 
-// Presets enterprise (Saved Views)
 const DEFAULT_VIEWS: EquipmentsSavedView[] = [
 	{
 		key: 'operational',
@@ -93,7 +206,8 @@ const DEFAULT_VIEWS: EquipmentsSavedView[] = [
 		includeArchived: false,
 		sort: 'status_ops',
 		status: 'all',
-		search: ''
+		search: '',
+		maintenanceWindow: 'all'
 	},
 	{
 		key: 'maintenance_focus',
@@ -101,7 +215,8 @@ const DEFAULT_VIEWS: EquipmentsSavedView[] = [
 		includeArchived: false,
 		sort: 'next_service_asc',
 		status: 'maintenance',
-		search: ''
+		search: '',
+		maintenanceWindow: 'due_30'
 	},
 	{
 		key: 'archived',
@@ -109,7 +224,8 @@ const DEFAULT_VIEWS: EquipmentsSavedView[] = [
 		includeArchived: true,
 		sort: 'updated_desc',
 		status: 'all',
-		search: ''
+		search: '',
+		maintenanceWindow: 'all'
 	}
 ];
 
@@ -117,17 +233,16 @@ function getViewByKey(key: EquipmentsSavedViewKey): EquipmentsSavedView {
 	return DEFAULT_VIEWS.find((v) => v.key === key) ?? DEFAULT_VIEWS[0];
 }
 
-/**
- * Helper para aplicar filtros de "name" e "status" no formato do TanStack Table
- */
 function buildColumnFilters(search: string, status: StatusFilterValue) {
 	const next: ColumnFiltersState = [];
-
 	if (search.trim()) next.push({ id: 'name', value: search });
 	if (status !== 'all') next.push({ id: 'status', value: status });
-
 	return next;
 }
+
+/* ---------------------------------------
+   Page Section
+---------------------------------------- */
 
 export default function EquipmentsTableSection() {
 	const router = useRouter();
@@ -136,44 +251,35 @@ export default function EquipmentsTableSection() {
 	const { user, loading: authLoading } = useAuth();
 	const { isAdmin, isLoading: roleLoading } = useUserRole();
 
-	// Qual preset o user selecionou (persistente)
 	const [savedViewKey, setSavedViewKey] =
 		useLocalStorage<EquipmentsSavedViewKey>(
 			'assetops.equipments.savedViewKey',
 			'operational'
 		);
 
-	/**
-	 * Estado real da tela (persistente).
-	 * Isso resolve o seu “F5 volta padrão”.
-	 */
 	const [customState, setCustomState] = useLocalStorage(
 		'assetops.equipments.customState',
-		// default inicial (se não existir no storage, começa pelo preset atual)
 		{
 			sort: 'status_ops' as EquipmentsSort,
 			includeArchived: false,
 			search: '',
-			status: 'all' as StatusFilterValue
+			status: 'all' as StatusFilterValue,
+			maintenanceWindow: 'all' as MaintenanceWindowValue
 		}
 	);
 
-	// Derivados do customState (a UI sempre reflete isso)
 	const sort = customState.sort as EquipmentsSort;
 	const includeArchived = Boolean(customState.includeArchived);
 	const search = (customState.search ?? '') as string;
 	const status = (customState.status ?? 'all') as StatusFilterValue;
+	const maintenanceWindow = (customState.maintenanceWindow ??
+		'all') as MaintenanceWindowValue;
 
-	// Column filters do TanStack Table, derivado (não é mais “fonte”)
 	const columnFilters = useMemo(
 		() => buildColumnFilters(search, status),
 		[search, status]
 	);
 
-	/**
-	 * Quando o user troca o Saved View, aplicamos o preset no customState
-	 * (e isso persiste, enterprise total).
-	 */
 	useEffect(() => {
 		const view = getViewByKey(savedViewKey);
 
@@ -181,7 +287,9 @@ export default function EquipmentsTableSection() {
 			sort: view.sort,
 			includeArchived: view.includeArchived,
 			search: view.search ?? '',
-			status: view.status ?? 'all'
+			status: view.status ?? 'all',
+			maintenanceWindow: (view.maintenanceWindow ??
+				'all') as MaintenanceWindowValue
 		});
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [savedViewKey]);
@@ -193,23 +301,28 @@ export default function EquipmentsTableSection() {
 		isLoading,
 		isFetching
 	} = useQuery<Equipment[]>({
-		// queryKey inclui os parâmetros enterprise
 		queryKey: ['equipments', { includeArchived, sort }],
 		queryFn: () => getEquipmentsList({ includeArchived, sort })
 	});
 
 	const filteredData = useMemo(() => {
-		// View Archived = somente arquivados
+		let list = data;
+
+		// Archived view = somente arquivados
 		if (savedViewKey === 'archived') {
-			return data.filter((e) => Boolean(e.archivedAt));
+			list = list.filter((e) => Boolean((e as any)?.archivedAt));
+		} else if (!includeArchived) {
+			// default = sem arquivados
+			list = list.filter((e) => !Boolean((e as any)?.archivedAt));
 		}
 
-		// Include archived = todos
-		if (includeArchived) return data;
+		// Maintenance window (stored/derived)
+		if (maintenanceWindow !== 'all') {
+			list = list.filter((e) => matchesMaintenanceWindow(e, maintenanceWindow));
+		}
 
-		// Default = sem arquivados
-		return data.filter((e) => !Boolean(e.archivedAt));
-	}, [data, includeArchived, savedViewKey]);
+		return list;
+	}, [data, includeArchived, savedViewKey, maintenanceWindow]);
 
 	/* ---------------- PERMISSIONS ---------------- */
 
@@ -255,7 +368,7 @@ export default function EquipmentsTableSection() {
 			header: 'Asset',
 			cell: ({ row }) => {
 				const equipment = row.original;
-				const isArchived = Boolean(equipment.archivedAt);
+				const isArchived = Boolean((equipment as any)?.archivedAt);
 
 				return (
 					<div className='flex items-center gap-2 min-w-0'>
@@ -277,11 +390,40 @@ export default function EquipmentsTableSection() {
 			accessorKey: 'lastServiceDate',
 			header: 'Last Service'
 		},
+
+		// Next Service (stored/derived) + badges ops
+		{
+			id: 'nextService',
+			header: 'Next Service',
+			cell: ({ row }) => {
+				const eq = row.original;
+				const tone = getNextServiceTone(eq);
+
+				return (
+					<div className='flex items-center gap-2'>
+						<Badge variant={tone.variant}>{tone.label}</Badge>
+
+						{tone.note ? (
+							<Badge
+								variant={
+									tone.variant === 'destructive' ? 'destructive' : 'secondary'
+								}
+								className='gap-1'
+							>
+								<Clock className='h-3.5 w-3.5' />
+								{tone.note}
+							</Badge>
+						) : null}
+					</div>
+				);
+			}
+		},
+
 		{
 			id: 'actions',
 			cell: ({ row }) => {
 				const equipment = row.original;
-				const isArchived = Boolean(equipment.archivedAt);
+				const isArchived = Boolean((equipment as any)?.archivedAt);
 
 				const handleEdit = () => {
 					router.push(`/equipments/action?action=edit&id=${equipment.id}`);
@@ -439,6 +581,26 @@ export default function EquipmentsTableSection() {
 						</SelectContent>
 					</Select>
 
+					{/* Maintenance Window */}
+					<Select
+						value={maintenanceWindow}
+						onValueChange={(value) =>
+							setCustomState((prev: any) => ({
+								...prev,
+								maintenanceWindow: value as MaintenanceWindowValue
+							}))
+						}
+					>
+						<SelectTrigger className='w-[220px]'>
+							<SelectValue placeholder='Maintenance window' />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value='all'>Maintenance window: All</SelectItem>
+							<SelectItem value='due_30'>Due soon (≤ 30d)</SelectItem>
+							<SelectItem value='overdue'>Overdue</SelectItem>
+						</SelectContent>
+					</Select>
+
 					{/* Sort */}
 					<Select
 						value={sort}
@@ -534,8 +696,8 @@ export default function EquipmentsTableSection() {
 					data={filteredData}
 					columnFilters={columnFilters}
 					onColumnFiltersChange={() => {
-						// aqui a gente mantém o TanStack só como “render”,
-						// porque o estado real está no customState.
+						// TanStack table fica só como render;
+						// o estado fonte é o customState.
 					}}
 				/>
 			)}
