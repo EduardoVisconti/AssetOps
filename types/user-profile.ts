@@ -7,4 +7,5 @@ export interface UserProfile {
 	email: string;
 	role: UserRole;
 	createdAt?: Timestamp | FieldValue;
+	updatedAt?: Timestamp | FieldValue;
 }

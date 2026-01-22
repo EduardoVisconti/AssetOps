@@ -5,7 +5,7 @@ export type MaintenanceType = 'preventive' | 'corrective';
 export interface MaintenanceRecord {
 	id: string;
 
-	date: string;
+	date: string; // yyyy-MM-dd
 	type: MaintenanceType;
 	notes?: string;
 

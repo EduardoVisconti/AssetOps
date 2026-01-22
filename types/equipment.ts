@@ -8,6 +8,7 @@ export interface Equipment {
 	name: string;
 	serialNumber: string;
 	serialNumberNormalized?: string;
+
 	status: EquipmentStatus;
 
 	purchaseDate: string; // "yyyy-MM-dd"
@@ -22,13 +23,13 @@ export interface Equipment {
 	createdAt?: Timestamp | FieldValue;
 	updatedAt?: Timestamp | FieldValue;
 
-	createdBy?: string;
-	createdByEmail?: string;
+	createdBy: string;
+	createdByEmail: string | null;
 
-	updatedBy?: string;
-	updatedByEmail?: string;
+	updatedBy: string;
+	updatedByEmail: string | null;
 
 	archivedAt?: Timestamp | FieldValue | null;
-	archivedBy?: string | null;
-	archivedByEmail?: string | null;
+	archivedBy: string | null;
+	archivedByEmail: string | null;
 }

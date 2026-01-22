@@ -11,10 +11,9 @@ export interface EquipmentEvent {
 	id: string;
 
 	type: EquipmentEventType;
-
 	equipmentId: string;
 
-	message?: string;
+	message: string;
 	metadata?: Record<string, any>;
 
 	actorId: string;
