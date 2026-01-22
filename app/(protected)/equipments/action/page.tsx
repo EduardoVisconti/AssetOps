@@ -181,17 +181,18 @@ export default function EquipmentActionPage() {
 	}
 
 	return (
-		<section className='p-4 md:p-6'>
+		<section>
 			<PageHeader
 				pageTitle={header.title}
 				pageDescription={header.desc}
 			/>
-
-			<div className='mt-4'>
-				<EquipmentForm
-					action={isEdit ? 'edit' : 'add'}
-					equipment={equipment}
-				/>
+			<div className='p-4 md:p-6'>
+				<div className='mt-4'>
+					<EquipmentForm
+						action={isEdit ? 'edit' : 'add'}
+						equipment={equipment}
+					/>
+				</div>
 			</div>
 		</section>
 	);
