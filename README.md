@@ -1,243 +1,260 @@
-# AssetOps — Enterprise Asset & Maintenance Operations Platform
+# 🏭 AssetOps — Equipment Management System
 
-AssetOps is a **production-grade asset and maintenance operations platform** built with **Next.js 14 (App Router)** and **Firebase**, designed to closely reflect how **real-world operations, facilities, and maintenance teams** manage physical assets at scale.
+> A production-ready asset tracking platform with maintenance scheduling, role-based access control, and comprehensive audit logging.
 
-This project focuses on **enterprise frontend architecture**, **data integrity**, **auditability**, and **decision-oriented dashboards**. It is suitable both as a **portfolio-grade system** and as a solid foundation for a real-world SaaS product.
-
----
-
-## 🚀 Live Demo
-
-- **Production URL:**  
-  https://equipment-dashboard-three.vercel.app/
-
-- **Repository:**  
-  https://github.com/EduardoVisconti/equipment-dashboard
+**🔗 Live Demo:** [asset-ops.vercel.app](https://asset-ops.vercel.app/login)
+**📧 Demo Login:** `client@test.com` / `123456`
 
 ---
 
-## 🔑 Demo Access
+## 📸 Screenshots
 
-A public demo account is available for evaluation purposes.
+**Dashboard Overview**
+![Dashboard](./screenshots/login-dashboard.gif)
 
-- **Email:** `client@test.com`
-- **Password:** `123456`
+**Equipment Management**
+![Equipment](./screenshots/equipment.gif)
 
-> Demo data is non-sensitive and may be reset at any time.
+**Maintenance Tracking**
+![Maintenance](./screenshots/maintenance.gif)
+
+**Analytics Page**
+![Analytics](./screenshots/analytics.gif)
 
 ---
 
-## 🧱 Tech Stack
+## 🎯 The Problem
+
+Companies managing physical assets (machinery, tools, equipment) need to:
+
+- Track equipment status and location
+- Schedule and log maintenance activities
+- Maintain compliance with audit trails
+- Prevent equipment downtime through proactive maintenance
+- Control access based on user roles
+
+AssetOps solves these challenges with a scalable, secure solution.
+
+---
+
+## ✨ Key Features
+
+### 📊 Asset Management
+
+- Complete equipment lifecycle tracking
+- Status monitoring (Active, Inactive, Under Maintenance)
+- Automatic maintenance scheduling based on service intervals
+- Real-time equipment availability tracking
+
+### 🔧 Maintenance System
+
+- Scheduled maintenance tracking
+- Service history with detailed logs
+- Overdue maintenance alerts
+- Automatic next service date calculation
+
+### 🔐 Security & Permissions
+
+- Role-based access control (Admin/Viewer)
+- Firestore security rules enforcement
+- Protected routes and actions
+- Secure authentication flow
+
+### 📈 Analytics & Reporting
+
+- Equipment status dashboard
+- Maintenance trends visualization
+- Data quality metrics
+- Overdue equipment tracking
+
+### 🗂️ Audit Trail
+
+- Complete event logging
+- User action tracking
+- Immutable historical records
+- Compliance-ready data retention
+
+---
+
+## 🛠️ Tech Stack
 
 ### Frontend
 
-- Next.js 14 (App Router)
-- React
-- TypeScript
-- Tailwind CSS
-- shadcn/ui
-- lucide-react
-- Recharts
+- **React 18** — UI framework
+- **TypeScript** — Type safety
+- **Tailwind CSS** — Styling
+- **shadcn/ui** — Component library
+- **React Hook Form** — Form management
+- **Zod** — Schema validation
+- **React Query** — Server state management
+- **Recharts** — Data visualization
 
-### State & Data Management
+### Backend & Database
 
-- TanStack React Query (server-state management)
-- React Hook Form
-- Zod (schema validation)
+- **Firebase Authentication** — User management
+- **Firestore** — NoSQL database
+- **Firestore Security Rules** — Backend authorization
 
-### Backend / Services
+### DevOps
 
-- Firebase Firestore
-- Firebase Authentication (Email / Password)
-
-### Tooling & Platform
-
-- Vercel (deployment)
-- ESLint / Prettier
-- Conventional Commits
+- **Vercel** — Deployment & hosting
+- **Git/GitHub** — Version control
+- **ESLint** — Code quality
 
 ---
 
-## 🎯 Product Scope
+## 🏗️ Architecture Highlights
 
-AssetOps enables teams to:
-
-- Register and manage physical assets
-- Track operational status and lifecycle
-- Manage preventive and corrective maintenance
-- Detect overdue and upcoming service events
-- Monitor operational health via dashboards
-- Analyze trends and historical data
-- Maintain immutable audit trails
-- Enforce role-based access control (admin / viewer)
-- Archive assets without breaking historical integrity
-
----
-
-## ✨ Core Features
-
-### 🔐 Authentication & Role-Based Access
-
-- Firebase Email/Password authentication
-- Protected routes via Next.js route groups
-- Role-based permissions:
-  - **Admin:** full write access
-  - **Viewer:** read-only access
-- UX-level permission enforcement
-- Security enforced via Firestore Rules
-
----
-
-### 🧰 Asset (Equipment) Management
-
-- Create, edit, archive, and restore assets
-- Enterprise-safe handling of archived records
-- Serial number uniqueness validation
-- Automatic maintenance interval calculations
-- Full audit metadata on all write operations
-
-**Tracked fields include:**
-
-- Name
-- Serial number
-- Status (active / maintenance / inactive)
-- Purchase date
-- Last service date
-- Next service date (stored or derived)
-- Service interval (days)
-- Archive metadata
-- Audit fields (createdBy / updatedBy)
-
----
-
-### 🛠 Maintenance History
-
-- Preventive and corrective maintenance records
-- Subcollection-based data model
-- Automatic updates to:
-  - `lastServiceDate`
-  - `nextServiceDate`
-- Event logged to activity feed for every maintenance entry
-- Admin-only write access
-- Append-only historical records
-
----
-
-### 📊 Operational Dashboard
-
-A real-time operational overview focused on **actionability** rather than vanity metrics:
-
-- Total assets
-- Status distribution
-- Overdue maintenance detection
-- Maintenance due in 7 / 30 days
-- Data quality indicators
-- Assets requiring attention
-- Recent activity feed
-
-All KPIs are derived from live Firestore data.
-
----
-
-### 📈 Analytics
-
-Analytics are intentionally separated from the operational dashboard.
-
-**Tabs:**
-
-- Overview
-- Maintenance
-- Trends
-
-**Capabilities:**
-
-- Status distribution analysis
-- Maintenance trends over time
-- Asset creation and growth tracking
-- Overdue vs upcoming service detection
-- Time-range and status-based filters
-
----
-
-### 📋 Enterprise-Grade Equipment Table
-
-- Saved Views (persisted via localStorage):
-  - Operational
-  - Maintenance Focus
-  - Archived
-- Persistent filters:
-  - Search
-  - Status
-  - Sort
-  - Include archived
-- Operationally meaningful sorting strategies
-- Next Service column with urgency indicators
-- Admin-only contextual actions
-
----
-
-## 🗂️ Data Architecture
-
-### Firestore Structure
+### Data Model Design
 
 ```
-equipments/
- ├─ {equipmentId}
- │   ├─ fields...
- │   ├─ maintenance/
- │   │   ├─ {maintenanceId}
- │   ├─ events/
- │   │   ├─ {eventId}
+Equipment (Current State)
+├── Basic Info (name, type, status)
+├── Maintenance Dates (last, next)
+└── Subcollections
+    ├── Maintenance Records (historical, immutable)
+    └── Events (audit trail, immutable)
 ```
 
-### Key Design Principles
+**Key Concept:** Separation of current state vs. historical data
 
-- Archived items are filtered client-side for schema resilience
-- `archivedAt == null` is never used in Firestore queries
-- Operational dates stored as `yyyy-MM-dd` strings
-- Derived values always have safe fallbacks
-- Writes that affect multiple documents are atomic
-- Audit trails are append-only and immutable
+- Equipment collection: mutable current state
+- Subcollections: immutable historical records
+
+### Smart Date Calculation
+
+```typescript
+nextServiceDate = lastServiceDate + serviceIntervalDays;
+```
+
+- No manual input required
+- Automatic overdue detection
+- Prevents human error
+
+### Security Architecture
+
+- **Frontend:** UI-level role checks
+- **Backend:** Firestore Rules enforcement
+- Even if frontend is bypassed, rules block unauthorized actions
 
 ---
 
-## 🧠 Architectural Decisions
-
-- Clear separation between **operational dashboards** and **analytics**
-- React Query as the single source of server-state truth
-- No hidden business logic inside UI components
-- Predictable query keys and invalidation strategy
-- No destructive deletes for business-critical entities
-- Enterprise-oriented consistency and audit rules
-
----
-
-## 🧪 Running Locally
+## 📦 Installation & Setup
 
 ```bash
-git clone https://github.com/EduardoVisconti/equipment-dashboard
-cd equipment-dashboard
+# Clone repository
+git clone https://github.com/EduardoVisconti/AssetOps.git
+cd AssetOps
+
+# Install dependencies
 npm install
+
+# Set up environment variables
+# Create .env file with:
+VITE_FIREBASE_API_KEY=your_key
+VITE_FIREBASE_AUTH_DOMAIN=your_domain
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_bucket
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+
+# Run development server
 npm run dev
 ```
 
-Create a `.env.local` file with your Firebase credentials.
+---
+
+## 🎮 Usage
+
+### Demo Accounts
+
+- **Admin:** `admin@test.com` / `123456`
+- **Viewer:** `client@test.com` / `123456`
+
+### Key Workflows
+
+**1. Create Equipment**
+
+- Navigate to Equipment page
+- Click "New Equipment"
+- Fill required fields (name, type, service interval)
+- System automatically calculates first service date
+
+**2. Log Maintenance**
+
+- Select equipment
+- Click "Add Maintenance"
+- Enter service details
+- System updates next service date automatically
+
+**3. Monitor Dashboard**
+
+- View real-time equipment status
+- Track overdue maintenance
+- Analyze maintenance trends
 
 ---
 
-## 🏁 Project Status
+## 🧪 Code Quality
 
-- Feature complete
-- Production-ready demo
-- Enterprise-grade architecture
-- No known critical bugs
+- **Type Safety:** Full TypeScript coverage
+- **Validation:** Zod schemas for all forms
+- **Error Handling:** Comprehensive error boundaries
+- **Code Organization:** Feature-based structure
+- **Security:** Backend-enforced authorization
 
-This project is considered **v1 complete**.
+---
+
+## 🚀 Deployment
+
+Deployed on Vercel with automatic deployments from `main` branch.
+
+**Production URL:** https://asset-ops.vercel.app
+
+---
+
+## 📚 What I Learned
+
+This project challenged me to:
+
+- Design scalable database architecture for long-term data
+- Implement proper separation between mutable state and immutable history
+- Build role-based access control with both frontend and backend enforcement
+- Handle complex date calculations for automated scheduling
+- Structure React applications for maintainability
+- Implement comprehensive form validation with type safety
+
+---
+
+## 🔮 Future Enhancements
+
+- [ ] Export maintenance reports (PDF/Excel)
+- [ ] Email notifications for upcoming maintenance
+- [ ] Mobile app (React Native)
+- [ ] Batch equipment import (CSV)
+- [ ] Advanced filtering and search
+- [ ] Equipment categories and tags
 
 ---
 
 ## 👨‍💻 Author
 
-**Eduardo Visconti**  
-Frontend Developer  
-Focused on scalable React systems, UX-driven products, and real-world frontend architecture.
+**Eduardo Visconti**
+
+- GitHub: [@EduardoVisconti](https://github.com/EduardoVisconti)
+- LinkedIn: [linkedin.com/in/eduardo-visconti](https://linkedin.com/in/eduardo-visconti)
+- Email: eduardovisconti11@email.com
+
+---
+
+## 📄 License
+
+This project is open source and available under the [MIT License](LICENSE).
+
+---
+
+**Built with ❤️ using React, TypeScript, and Firebase**
+
+```
+
+```
