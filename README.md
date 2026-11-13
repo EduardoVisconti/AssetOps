@@ -1,6 +1,6 @@
-# 🏭 AssetOps — Equipment Management System
+# 🏭 AssetOps: Equipment Management System
 
-> A production-ready asset tracking platform with maintenance scheduling, role-based access control, and comprehensive audit logging.
+> An asset tracking platform with maintenance scheduling, role-based access control, and an append-only audit log.
 
 **🔗 Live Demo:** [asset-ops.vercel.app](https://asset-ops.vercel.app/login)
 **📧 Demo Login:** `client@test.com` / `123456`
@@ -29,7 +29,6 @@ Companies managing physical assets (machinery, tools, equipment) need to:
 
 - Track equipment status and location
 - Schedule and log maintenance activities
-- Maintain compliance with audit trails
 - Prevent equipment downtime through proactive maintenance
 - Control access based on user roles
 
@@ -44,7 +43,7 @@ AssetOps solves these challenges with a scalable, secure solution.
 - Complete equipment lifecycle tracking
 - Status monitoring (Active, Inactive, Under Maintenance)
 - Automatic maintenance scheduling based on service intervals
-- Real-time equipment availability tracking
+- Equipment availability tracking
 
 ### 🔧 Maintenance System
 
@@ -69,10 +68,8 @@ AssetOps solves these challenges with a scalable, secure solution.
 
 ### 🗂️ Audit Trail
 
-- Complete event logging
-- User action tracking
+- Append-only audit log
 - Immutable historical records
-- Compliance-ready data retention
 
 ---
 
@@ -80,26 +77,26 @@ AssetOps solves these challenges with a scalable, secure solution.
 
 ### Frontend
 
-- **React 18** — UI framework
-- **TypeScript** — Type safety
-- **Tailwind CSS** — Styling
-- **shadcn/ui** — Component library
-- **React Hook Form** — Form management
-- **Zod** — Schema validation
-- **React Query** — Server state management
-- **Recharts** — Data visualization
+- **Next.js 14** (App Router) and **React 18**: UI framework
+- **TypeScript**: Type safety
+- **Tailwind CSS**: Styling
+- **shadcn/ui**: Component library
+- **React Hook Form**: Form management
+- **Zod**: Schema validation
+- **React Query**: Server state management
+- **Recharts**: Data visualization
 
 ### Backend & Database
 
-- **Firebase Authentication** — User management
-- **Firestore** — NoSQL database
-- **Firestore Security Rules** — Backend authorization
+- **Firebase Authentication**: User management
+- **Firestore**: NoSQL database
+- **Firestore Security Rules**: Backend authorization
 
 ### DevOps
 
-- **Vercel** — Deployment & hosting
-- **Git/GitHub** — Version control
-- **ESLint** — Code quality
+- **Vercel**: Deployment & hosting
+- **Git/GitHub**: Version control
+- **ESLint**: Code quality
 
 ---
 
@@ -134,7 +131,7 @@ nextServiceDate = lastServiceDate + serviceIntervalDays;
 ### Security Architecture
 
 - **Frontend:** UI-level role checks
-- **Backend:** Firestore Rules enforcement
+- **Backend:** role checks enforced in Firestore rules
 - Even if frontend is bypassed, rules block unauthorized actions
 
 ---
@@ -150,13 +147,13 @@ cd AssetOps
 npm install
 
 # Set up environment variables
-# Create .env file with:
-VITE_FIREBASE_API_KEY=your_key
-VITE_FIREBASE_AUTH_DOMAIN=your_domain
-VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_bucket
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-VITE_FIREBASE_APP_ID=your_app_id
+# Create .env.local with:
+NEXT_PUBLIC_FIREBASE_API_KEY=your_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_domain
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_bucket
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 
 # Run development server
 npm run dev
@@ -189,7 +186,7 @@ npm run dev
 
 **3. Monitor Dashboard**
 
-- View real-time equipment status
+- View equipment status
 - Track overdue maintenance
 - Analyze maintenance trends
 
@@ -199,7 +196,6 @@ npm run dev
 
 - **Type Safety:** Full TypeScript coverage
 - **Validation:** Zod schemas for all forms
-- **Error Handling:** Comprehensive error boundaries
 - **Code Organization:** Feature-based structure
 - **Security:** Backend-enforced authorization
 
@@ -207,7 +203,7 @@ npm run dev
 
 ## 🚀 Deployment
 
-Deployed on Vercel with automatic deployments from `main` branch.
+Deployed on Vercel with automatic deployments from the `master` branch.
 
 **Production URL:** https://asset-ops.vercel.app
 
@@ -243,7 +239,7 @@ This project challenged me to:
 
 - GitHub: [@EduardoVisconti](https://github.com/EduardoVisconti)
 - LinkedIn: [linkedin.com/in/eduardo-visconti](https://linkedin.com/in/eduardo-visconti)
-- Email: eduardovisconti11@gmail.com
+- Email: eduardo.visconti.dev@gmail.com
 
 ---
 
